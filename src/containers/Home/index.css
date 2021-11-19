@@ -1,0 +1,112 @@
+.home-container {
+  margin: 20px 40px;
+}
+.home-container .address-textarea {
+  border-radius: 5px;
+  margin: 20px 20px;
+  height: 150px;
+  width: 300px;
+}
+
+.home-container .date-range-picker {
+  margin: 20px 20px;
+}
+.home-container #date-range-picker input{
+ min-width: 0.54em;
+  position: relative;
+  padding: 0 1px;
+  border: 0;
+  height: auto;
+  background: none;
+  font: inherit;
+  box-sizing: content-box;
+}
+.home-container #date-range-picker .react-daterange-picker__inputGroup {
+  min-width: calc((4px * 3) + 0.54em * 8 + 0.217em * 2);
+  flex-grow: 1;
+  height: auto;
+  padding: 0 2px;
+  box-sizing: content-box;
+}
+.home-container #date-range-picker span {
+  border: 0;
+}
+.home-container .react-daterange-picker__wrapper{
+    border-radius: .28571429rem;
+    box-shadow: 0 0 0 0 transparent inset;
+    border: 1px solid rgba(34,36,38,.15);
+    font-family: Lato,'Helvetica Neue',Arial,Helvetica,sans-serif;
+    margin: 0;
+    outline: 0;
+    -webkit-appearance: none;
+    tap-highlight-color: rgba(255,255,255,0);
+    line-height: 1.21428571em;
+    padding: .67857143em 1em;
+    font-size: 1em;
+    background: #fff;
+    border: 1px solid rgba(34,36,38,.15);
+    color: rgba(0,0,0,.87);
+    border-radius: .28571429rem;
+    box-shadow: 0 0 0 0 transparent inset;
+    transition: color .1s ease,border-color .1s ease;
+}
+.csv-selector {
+  margin: 20px 0px;
+}
+
+.home-body {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.home-body .column1 {
+  margin: 5px;
+}
+.home-body .column2 {
+  flex: 1;
+  display: flex;
+  margin: 5px;
+  flex-direction: column;
+  justify-content: center;
+}
+.home-body .column2 table {
+  text-align: center;
+}
+.home-body .column2 table th {
+  text-align: center;
+  padding: 5px;
+}
+.home-body .column2 table td {
+  text-align: center;
+  padding: 5px;
+}
+.home-body .column2 table th.name, .home-body .column2 table td.name {
+  text-align: left;
+}
+.rate-selector {
+  padding: 5px;
+  width: 60px;
+  width: 100%;
+  border-radius: 0px;
+  background-color: #FFFFFF;
+}
+.rate-option {
+  background-color: lightgray
+}
+.rate-option:hover {
+  background-color: gray
+}
+.generate-invoice-button {
+  border: none;
+  margin: 20px 0px;
+  background-color: #C84141;
+  color: #FFFFFF;
+  font-size: 18px;
+  padding: 15px;
+  font-weight: 900;
+  border-radius: 10px;
+}
+.menu {
+  display: flex;
+  flex-wrap: wrap;
+}

@@ -10,12 +10,14 @@ import { WeekInvoice } from './containers/WeekInvoice';
 import { LoginForm } from './containers/Login';
 import { Projects } from './containers/Projects';
 import routes from './constants/routes';
+import { InvoicePDF } from './containers/InvoicePDF';
 
 function App() {
 
 	return (
 		<BrowserRouter>
 			<Routes>
+				<Route path={routes.DOWNLOAD_INVOICE} element={<InvoicePDF />} />
 				<Route path={routes.PROJECTS} element={<Projects />} />
 				<Route path={routes.WEEK_INVOICE} element={<WeekInvoice />} />
 				<Route path={routes.LOGIN} element={<LoginForm />} />

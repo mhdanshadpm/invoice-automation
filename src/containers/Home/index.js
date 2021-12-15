@@ -2,6 +2,7 @@ import DateRangePicker from '@wojtekmaj/react-daterange-picker';
 import { createRef, useEffect, useState } from 'react';
 import { readRemoteFile } from 'react-papaparse';
 import moment from 'moment';
+import 'moment-weekday-calc';
 import './index.css';
 import { useNavigate } from 'react-router-dom'
 import { Button, Dropdown, Form, Input, Label, Grid, Table, Header, Icon, Segment, Menu } from 'semantic-ui-react'
@@ -10,8 +11,24 @@ import { useDispatch, useSelector } from 'react-redux';
 import { selectProjects, storeProjects } from '../../store/projectsSlice';
 import { useFirebase } from '../../firebase';
 import { Header as AppHeader } from '../../components/Header'
-import { getSecondsFromTimeHHMM, getTimeFromSecondsHHMM, getWeeksInRange, getWeeksInRangeV2 } from '../../utils/functions';
-import { selectCSVFile, selectInvoiceData, setWeekInvoiceData, setSelectedFile } from '../../store/invoiceSlice';
+import { getSecondsFromTimeHHMM, getTimeFromSecondsHHMM, getWeeksInRange, getWeeksInRangeV2, zeroPad } from '../../utils/functions';
+import { selectCSVFile, selectJSONFile, selectInvoiceData, setWeekInvoiceData, setSelectedFile, setSelectedJSONFile, selectCardData, setCardData, selectFormData, setFormData } from '../../store/invoiceSlice';
+import { render } from 'react-dom';
+import axios from 'axios';
+import { Version2Client } from 'jira.js';
+import JiraApi from 'jira-client';
+import { TableHeader } from './TableHeader';
+
+
+const client = new Version2Client({
+	host: 'https://anshad.atlassian.net',
+	authentication: {
+		basic: {
+			email: 'muhammad.anshad@teronext.com',
+			password: '9645542515@Teronext'
+		},
+	},
+});
 
 const Home = () => {
 
@@ -24,52 +41,49 @@ const Home = () => {
 		}
 	}, [])
 
-
 	const { getTestData, getProjectsList, getInvoiceAppInfo } = useFirebase()
 	const projects = useSelector(selectProjects)
 	const weekInvoiceData = useSelector(selectInvoiceData)
+	const cardData = useSelector(selectCardData)
 	const selectedFile = useSelector(selectCSVFile)
+	const selectedJSONFile = useSelector(selectJSONFile)
+	const formData = useSelector(selectFormData)
+
 	const documentRef = createRef();
-	const [from, setFrom] = useState(`Teronext Consulting
-A3 Alsa Woodbine Line Road
-Thycaud Trivandrum
-Kerala India
+	const jsonRef = createRef();
 
-
-Ph: +91 7907 881 319
-Payment method - via Remote.com`)
+	const [from, setFrom] = useState('Teronext Consulting\nA3 Alsa Woodbine Line Road\nThycaud Trivandrum\nKerala India\n\n\nPh: +91 7907 881 319\nPayment method - via Remote.com')
 	const [to, setTo] = useState('')
-	// const [selectedFile, setSelectedFile] = useState();
 	const [data, setData] = useState([]);
-	// const [projects, setProjects] = useState({});
 	const [project, setProject] = useState(Object.keys(projects)[0] || '');
 	const [balance, setBalance] = useState(0)
 	const [nextMonthEstimate, setNextMonthEstimate] = useState(0)
 	const [minDate, setMinDate] = useState();
 	const [activeItem, setActiveItem] = useState('Week1')
 	const [maxDate, setMaxDate] = useState();
-	const [invoiceData, setInvoiceData] = useState([]);
 	const [invoiceMode, setInvoiceMode] = useState('week')
 	const [invoiceNumber, setInvoiceNumber] = useState(0)
-	const [total, setTotal] = useState({
-		hoursWorked: '00:00',
-		hoursBilled: '00:00',
-		usd: 0
-	})
+
+	// const {
+	// 	to,
+	// } = formData
+
+	// const setTo = (data) => dispatch(setFormData({to: data}))
+
 	const dispatch = useDispatch()
 	const [dateRange, setDateRange] = useState([new Date(), new Date()]);
 	useEffect(() => {
-		getTestData().then(r => console.log({ r: r.val() }))
+		// getTestData().then(r => console.log({ r: r.val() }))
 	}, [])
 
 	const handleItemClick = (e, { name }) => setActiveItem(name)
+
 	useEffect(() => {
 		getProjectsList().then(r => {
 			const projects = r.docs.reduce((_projects, doc) => ({
 				..._projects,
 				[doc.id]: doc.data(),
 			}), {})
-			console.log(projects);
 			dispatch(storeProjects(projects))
 			setProject(Object.keys(projects)[0] || '')
 		})
@@ -78,12 +92,10 @@ Payment method - via Remote.com`)
 	useEffect(() => {
 		getInvoiceAppInfo().then(docSnap => {
 			if (docSnap.exists()) {
-				console.log("Document data:", docSnap.data());
 				setInvoiceNumber(Number(docSnap
 					.data().last_invoice_number) + 1)
 			} else {
 				// doc.data() will be undefined in this case
-				console.log("No such document!");
 			}
 		})
 	}, [])
@@ -112,18 +124,19 @@ Payment method - via Remote.com`)
 				total,
 			}
 		}
-		console.log({ updatedWeekInvoiceData })
 		findAndSaveTotalInvoiceData(updatedWeekInvoiceData)
 	}
 	const setHourlyRate = (key, rate) => {
 		const updatedWeekInvoiceData = Object.keys(weekInvoiceData).reduce((_updatedWeekInvoiceData, weekKey) => {
 			const updatedInvoiceData = {
 				...weekInvoiceData[weekKey].data,
-				[key]: {
-					...weekInvoiceData[weekKey].data[key],
-					hourlyRate: rate,
-					totalInUSD: rate * weekInvoiceData[weekKey].data[key].hours
-				}
+				...(!!weekInvoiceData[weekKey]?.data[key] && {
+					[key]: {
+						...weekInvoiceData[weekKey].data[key],
+						hourlyRate: rate,
+						totalInUSD: rate * weekInvoiceData[weekKey]?.data[key]?.hours || 0
+					}
+				})
 			}
 			const total = getTotal(updatedInvoiceData)
 			return {
@@ -136,83 +149,28 @@ Payment method - via Remote.com`)
 			}
 		}, {})
 
-		console.log({ updatedWeekInvoiceData })
 		dispatch(setWeekInvoiceData(updatedWeekInvoiceData))
 	}
-	const getTime = (seconds) => {
-		const hoursFromSeconds = parseInt(seconds / 3600)
-		const minutesFromSecond = moment.utc(parseInt((seconds - hoursFromSeconds * 3600)) * 1000).format('mm')
-		const time = hoursFromSeconds + ':' + minutesFromSecond;
-		return time
-	}
-	const zeroPad = (num, size) => {
-		var s = String(num);
-		while (s.length < (size || 2)) { s = "0" + s; }
-		return s;
-	}
-	const getSeconds = (time) => {
-		const timeArray = time.split(':');
-		const secondsFromHours = Number(timeArray[0]) * 3600;
-		const secondsFromMinutes = Number(timeArray[1]) * 60;
-		const timeInSeconds = secondsFromHours + secondsFromMinutes;
-		return timeInSeconds;
-	}
-	const findTotal = (invoiceData) => {
-		const hoursWorkedArray = Object.values(invoiceData).map(item => item.hoursWorked);
-		console.log({ hoursWorkedArray })
-		const totalHoursWorked = hoursWorkedArray.reduce((total, hoursWorked) => {
-			const totalInSeconds = getSeconds(total)
-			const hoursWorkedInSeconds = getSeconds(hoursWorked);
-			const newTotalInSeconds = totalInSeconds + hoursWorkedInSeconds;
-			const newTotal = getTime(newTotalInSeconds)
-			return newTotal
-		}, '00:00')
-		console.log({ totalHoursWorked })
-		const hoursBilledArray = Object.values(invoiceData).map(item => item.hoursBilled);
-		console.log({ hoursBilledArray })
-		const totalHoursBilled = hoursBilledArray.reduce((total, hoursBilled) => {
-			const totalInSeconds = getSeconds(total)
-			const hoursWorkedInSeconds = getSeconds(hoursBilled);
-			const newTotalInSeconds = totalInSeconds + hoursWorkedInSeconds;
-			const newTotal = getTime(newTotalInSeconds)
-			return newTotal
-		}, '00:00')
-		console.log({ totalHoursBilled })
-		const totalInUSDArray = Object.values(invoiceData).map(item => item.totalInUSD);
-		console.log({ totalInUSDArray })
-		const totalInUSD = totalInUSDArray.reduce((total, usd) => total + Number(usd), 0)
-		console.log({ totalInUSDArray, totalInUSD })
-		setTotal({
-			hoursWorked: totalHoursWorked,
-			hoursBilled: totalHoursBilled,
-			usd: totalInUSD
-		})
-	}
+
 	const getTotal = (invoiceData) => {
 		const hoursWorkedArray = Object.values(invoiceData).map(item => item.hoursWorked);
-		console.log({ hoursWorkedArray })
 		const totalHoursWorked = hoursWorkedArray.reduce((total, hoursWorked) => {
-			const totalInSeconds = getSeconds(total)
-			const hoursWorkedInSeconds = getSeconds(hoursWorked);
+			const totalInSeconds = getSecondsFromTimeHHMM(total)
+			const hoursWorkedInSeconds = getSecondsFromTimeHHMM(hoursWorked);
 			const newTotalInSeconds = totalInSeconds + hoursWorkedInSeconds;
-			const newTotal = getTime(newTotalInSeconds)
+			const newTotal = getTimeFromSecondsHHMM(newTotalInSeconds)
 			return newTotal
 		}, '00:00')
-		console.log({ totalHoursWorked })
 		const hoursBilledArray = Object.values(invoiceData).map(item => item.hoursBilled);
-		console.log({ hoursBilledArray })
 		const totalHoursBilled = hoursBilledArray.reduce((total, hoursBilled) => {
-			const totalInSeconds = getSeconds(total)
-			const hoursWorkedInSeconds = getSeconds(hoursBilled);
+			const totalInSeconds = getSecondsFromTimeHHMM(total)
+			const hoursWorkedInSeconds = getSecondsFromTimeHHMM(hoursBilled);
 			const newTotalInSeconds = totalInSeconds + hoursWorkedInSeconds;
-			const newTotal = getTime(newTotalInSeconds)
+			const newTotal = getTimeFromSecondsHHMM(newTotalInSeconds)
 			return newTotal
 		}, '00:00')
-		console.log({ totalHoursBilled })
 		const totalInUSDArray = Object.values(invoiceData).map(item => item.totalInUSD);
-		console.log({ totalInUSDArray })
 		const totalInUSD = totalInUSDArray.reduce((total, usd) => total + Number(usd), 0)
-		console.log({ totalInUSDArray, totalInUSD })
 		return ({
 			hoursWorked: totalHoursWorked,
 			hoursBilled: totalHoursBilled,
@@ -246,16 +204,12 @@ Payment method - via Remote.com`)
 		const invoiceData = Object.keys(workers).reduce((_invoiceData, key) => {
 			const workersData = workers[key];
 			const worker = key;
-			console.log({
-				[key]: workersData
-			})
 			const totalDurationInseconds = workersData.reduce((total, item) => total + (parseInt(item.duration_seconds)), 0)
 			const hoursFromSeconds = parseInt(Number(totalDurationInseconds) / 3600)
 			const minutesFromSecond = moment.utc(parseInt((totalDurationInseconds - hoursFromSeconds * 3600)) * 1000).format('mm')
 			const hoursWorked = hoursFromSeconds + ':' + minutesFromSecond
 			const flooredMinutes = parseInt(minutesFromSecond / 10) * 10;
 			const hoursBilled = hoursFromSeconds + ':' + moment.utc(flooredMinutes * 60000).format('mm');
-			const splittedTime = hoursBilled.split(':');
 			const hours = (hoursFromSeconds + flooredMinutes / 60);
 			return {
 				..._invoiceData,
@@ -274,8 +228,8 @@ Payment method - via Remote.com`)
 		return ({
 			data: invoiceData,
 			total,
-			start,
-			end,
+			start: start.toISOString(),
+			end: end.toISOString(),
 		})
 	}
 
@@ -339,8 +293,8 @@ Payment method - via Remote.com`)
 			Total: {
 				data: totalInvoice,
 				total,
-				start: minDate,
-				end: maxDate,
+				start: minDate?.toISOString(),
+				end: maxDate?.toISOString(),
 			}
 		}))
 	}
@@ -356,7 +310,6 @@ Payment method - via Remote.com`)
 		}, {})
 
 		dispatch(setWeekInvoiceData(weeksInvoice))
-		console.log({ weeks, weeks2, weeksInvoice })
 
 		findAndSaveTotalInvoiceData(weeksInvoice)
 
@@ -372,10 +325,8 @@ Payment method - via Remote.com`)
 				header: true,
 				skipEmptyLines: true,
 				complete: ({ data }) => {
-					console.log(data)
 					setData(data)
 					const dates = data.map(item => moment(item.start_time))
-					console.log(dates)
 					setMinDate(moment.min(dates).startOf('day').toDate())
 					setMaxDate(moment.max(dates).endOf('day').toDate())
 					setDateRange([moment.min(dates).startOf('day').toDate(), moment.max(dates).endOf('day').toDate()])
@@ -383,6 +334,75 @@ Payment method - via Remote.com`)
 			})
 		}
 	}, [selectedFile])
+
+	// const readJsonFileText = async () => {
+	// 	const text = await selectedJSONFile.text()
+	// 	return JSON.parse(text)
+	// }
+
+
+	useEffect(() => {
+		if (selectedJSONFile) {
+			selectedJSONFile.text().then(text => {
+				const jsonData = JSON.parse(text)
+				const jsonDataByAssignee = jsonData.reduce((_jsonDataByAssignee, item) => {
+					return {
+						..._jsonDataByAssignee,
+						[item.assignee]: [
+							...(_jsonDataByAssignee[item.assignee] || []),
+							item,
+						]
+					}
+				}, {})
+				const cardData = Object.keys(jsonDataByAssignee).reduce((_cardData, key) => {
+					const cards = jsonDataByAssignee[key].map(item => {
+						const cardName = item.summary;
+						const histories = item.changeLog.histories;
+						const todoDate = histories[histories.length - 1]?.created;
+						const inQRDate = histories.find(item => item.items[0].toString.toUpperCase() === 'IN QA')?.created;
+						const inStagingDate = histories.find(item => item.items[0].toString.toUpperCase() === 'IN STAGING')?.created;
+						const noOfDaysWorkedAsTeamMember = moment()?.isoWeekdayCalc({
+							rangeStart: todoDate,
+							rangeEnd: inQRDate,
+							weekdays: [1, 2, 3, 4, 5], //weekdays Mon to Fri
+						})
+						const noOfDaysWorkedAsQAPerson =  moment()?.isoWeekdayCalc({
+							rangeStart: inQRDate,
+							rangeEnd: inStagingDate,
+							weekdays: [1, 2, 3, 4, 5], //weekdays Mon to Fri
+						})
+						return {cardName, todoDate, inQRDate, inStagingDate, noOfDaysWorkedAsQAPerson, noOfDaysWorkedAsTeamMember}
+					})
+					const cardTotal = cards.length;
+					const totalDays = cards.reduce((_totalDays, card) => ({
+						asTeamMember: _totalDays.asTeamMember + card.noOfDaysWorkedAsTeamMember,
+						asQAPerson: _totalDays.asQAPerson + card.noOfDaysWorkedAsQAPerson,
+					}), { asTeamMember: 0, asQAPerson: 0 })
+					const average = {
+						asTeamMember: Number(totalDays.asTeamMember) / Number(cardTotal),asQAPerson: Number(totalDays.asQAPerson) / Number(cardTotal)
+					}
+					return {
+						..._cardData,
+						[key]: {
+							cards,
+							role: 'Team Member',
+							total: {
+								cardTotal,
+								totalDays,
+								average,
+							}
+						}
+					}
+				}, {})
+				console.log({ jsonData, jsonDataByAssignee, cardData })
+				dispatch(setCardData(cardData))
+			})
+		}
+	}, [selectedJSONFile])
+
+	useEffect(() => {
+
+	}, [cardData])
 
 	useEffect(() => {
 		if (project && projects[project]) {
@@ -398,217 +418,457 @@ Payment method - via Remote.com`)
 		}
 	}, [invoiceMode, project])
 
+	const isInvoiceModeMonth = (invoiceMode === 'month')
+	const isInvoiceModeWeek = (invoiceMode === 'week')
+
+	const renderGenerateInvoiceButton = () => {
+		const invoice = isInvoiceModeMonth ? weekInvoiceData?.Total : weekInvoiceData[activeItem];
+		const invoiceData = invoice?.data || {}
+		const total = invoice?.total || {}
+		const zeroPaddedInvoiceNumber = zeroPad(Number(invoiceNumber), 4)
+		const projectName = projects[project]?.name
+		const endBalance = (Number(balance) - Number(total?.usd?.toFixed(2)))?.toFixed(2)
+		const dates = [invoice?.start, invoice?.end]
+		const state = {
+			nextMonthEstimate,
+			invoiceMode,
+			invoiceData,
+			from,
+			to,
+			dates,
+			startBalance: balance,
+			endBalance,
+			invoiceNumber: zeroPaddedInvoiceNumber,
+			total,
+			project: projectName,
+			cardData,
+		}
+
+		const navigateToInvoice = () => navigate('/week_invoice', {
+			state
+		});
+
+		return selectedFile && (
+			<Button onClick={navigateToInvoice} color='blue' size='medium'>Generate Invoice</Button>
+		)
+	}
+
+	const renderDownloadInvoiceButton = () => {
+		const invoice = isInvoiceModeMonth ? weekInvoiceData?.Total : weekInvoiceData[activeItem];
+		const invoiceData = invoice?.data || {}
+		const total = invoice?.total || {}
+		const zeroPaddedInvoiceNumber = zeroPad(Number(invoiceNumber), 4)
+		const projectName = projects[project]?.name
+		const endBalance = (Number(balance) - Number(total?.usd?.toFixed(2)))?.toFixed(2)
+		const dates = [invoice?.start, invoice?.end]
+		const state = {
+			nextMonthEstimate,
+			invoiceMode,
+			invoiceData,
+			from,
+			to,
+			dates,
+			startBalance: balance,
+			endBalance,
+			invoiceNumber: zeroPaddedInvoiceNumber,
+			total,
+			project: projectName,
+			cardData,
+		}
+
+		const navigateToInvoice = () => navigate('/download_invoice', {
+			state
+		});
+
+		return selectedFile && (
+			<Button onClick={navigateToInvoice} color='blue' size='medium'>Download Invoice</Button>
+		)
+	}
+
+	const renderTableSegment = () => {
+		const header = `Invoice #${zeroPad(Number(invoiceNumber), 4)}`;
+		const period = `${moment(weekInvoiceData[activeItem]?.start).format('MMMM D ,YYYY ')} through ${moment(weekInvoiceData[activeItem]?.end).format('MMMM D ,YYYY ')}`
+		const total = weekInvoiceData[activeItem]?.total || {}
+		const invoiceData = weekInvoiceData[activeItem]?.data || {}
+		return (
+			<Segment>
+				<Header as='h5'>
+					{header}
+				</Header>
+				<Header as='h5'>
+					Period: {period}
+				</Header>
+				<Table celled striped>
+					<TableHeader activeItem={activeItem} />
+					<TableBody
+						activeItem={activeItem}
+						onChangeHoursWorked={onChangeHoursWorked}
+						data={data}
+						total={total}
+						invoiceData={invoiceData}
+						setHourlyRate={setHourlyRate}
+						cardData={cardData}
+					/>
+				</Table>
+			</Segment>
+		)
+	}
+
+	const onClickFileInput = () => documentRef.current.click()
+	const onClickJSONFileInput = () => jsonRef.current.click()
+
+	const renderFileInput = () => {
+		if (selectedFile) {
+			return (
+				<div style={{ marginBottom: 20 }}>
+					<Button as='div' labelPosition='left'>
+						<Label as='a' basic pointing='right'>
+							{selectedFile.name}
+						</Label>
+						<Button onClick={onClickFileInput} icon>
+							Change
+									</Button>
+					</Button>
+				</div>
+			)
+		}
+		const buttonText = !selectedFile ? 'Add a .csv file' : 'Change document';
+		const content = selectedFile?.name || 'Upload TopTracker Report';
+		return (
+			<div className='csv-selector'>
+				<Segment placeholder>
+					<Header icon>
+						<Icon name='file alternate outline' />
+						{content}
+					</Header>
+					<Button onClick={onClickFileInput} primary> {buttonText}</Button>
+				</Segment>
+			</div>
+		)
+	}
+
+	const renderJSONFileInput = () => {
+		if (selectedJSONFile) {
+			return (
+				<div style={{ marginBottom: 20 }}>
+					<Button as='div' labelPosition='left'>
+						<Label as='a' basic pointing='right'>
+							{selectedJSONFile.name}
+						</Label>
+						<Button onClick={onClickJSONFileInput} icon>
+							Change
+									</Button>
+					</Button>
+				</div>
+			)
+		}
+		const buttonText = !selectedJSONFile ? 'Add a .json file' : 'Change .json file';
+		const content = selectedJSONFile?.name || 'Upload Jira data';
+		return (
+			<div className='csv-selector'>
+				<Segment placeholder>
+					<Header icon>
+						<Icon name='file code outline' />
+						{content}
+					</Header>
+					<Button onClick={onClickJSONFileInput} primary> {buttonText}</Button>
+				</Segment>
+			</div>
+		)
+	}
+
+	const renderWeeksTabsMenu = () => isInvoiceModeMonth && (
+		<Menu color='blue' secondary className='menu'>
+			{((Object.keys(weekInvoiceData) || []).map((key, index) => {
+				return (
+					<Menu.Item
+						name={key}
+						active={activeItem === key}
+						children={key}
+						onClick={handleItemClick}
+					/>
+				)
+			}))}
+		</Menu>
+	)
+
+	const hasWeekInvoice = (Object.keys(weekInvoiceData).length > 0)
+	const showTabsAndTable = (selectedFile && weekInvoiceData && hasWeekInvoice)
+	const renderInvoiceTabsAndTable = () => showTabsAndTable && (
+		<div>
+			{renderWeeksTabsMenu()}
+			{renderTableSegment()}
+		</div>
+	)
+
+	const onChangeFile = (e) => {
+		if (e.target.files.length > 0) {
+			dispatch(setSelectedFile(e.target.files[0]))
+		}
+	}
+	const onChangeJSONFile = (e) => {
+		if (e.target.files.length > 0) {
+			dispatch(setSelectedJSONFile(e.target.files[0]))
+		}
+	}
+
+	const renderHiddenFileInput = () => (
+		<input hidden onChange={onChangeFile} accept='.csv' ref={documentRef} type='file' />
+	)
+
+	const renderHiddenJSONFileInput = () => (
+		<input hidden onChange={onChangeJSONFile} accept='.json' ref={jsonRef} type='file' />
+	)
+
+	const renderSelectWeekDropdown = () => {
+		const onChangeActiveItem = (e, data) => setActiveItem(data.value)
+		const weekKeys = Object.keys(weekInvoiceData)
+		const weekOptions = weekKeys.filter(key => key !== 'Total').map(key => {
+			const startDate = moment(weekInvoiceData[key].start).format('DD/MM/YY')
+			const endDate = moment(weekInvoiceData[key].end).format('DD/MM/YY')
+			const text = `${key}: ${startDate} - ${endDate}`
+			return ({
+				key,
+				value: key,
+				text,
+			})
+		})
+		return isInvoiceModeWeek && (
+			<Form.Field>
+				<label>Select Week</label>
+				<Dropdown
+					value={activeItem}
+					placeholder='Select week'
+					selection
+					onChange={onChangeActiveItem}
+					options={weekOptions} />
+			</Form.Field>
+		)
+	}
+
+	const renderNextMonthEstimateInput = () => {
+		const label = `Total estimate for the month of ${moment(dateRange[0]).add(1, 'month').format('MMMM')}`
+
+		const onChangeEstimate = (e) => { setNextMonthEstimate(e.target.value) }
+
+		return invoiceMode === 'month' && (
+			<Form.Field>
+				<label>{label}</label>
+				<Input labelPosition='left' type='text' placeholder='Amount'>
+					<Label basic>$</Label>
+					<input value={nextMonthEstimate} onChange={onChangeEstimate} />
+				</Input>
+			</Form.Field>
+		)
+	}
+
+	const renderInvoiceForm = () => {
+		const onChangeInvoiceNumber = (e) => setInvoiceNumber(e.target.value)
+		const onChangeProject = (e, data) => setProject(data.value)
+		const onChangeInvoiceMode = (e, data) => setInvoiceMode(data.value)
+		const onChangeStartBalance = (e) => setBalance(e.target.value)
+		const onChangeFromAddress = (e) => setFrom(e.target.value)
+		const onChangeToAddress = (e) => setTo(e.target.value)
+
+		const projectKeys = Object.keys(projects)
+		const dropdownOptions = projectKeys.map(key => ({
+			key,
+			value: key,
+			text: projects[key].name
+
+		}))
+		const invoiceModeOptions = [
+			{
+				key: 'week',
+				value: 'week',
+				text: 'Week'
+			},
+			{
+				key: 'month',
+				value: 'month',
+				text: 'Month'
+			},
+		]
+		const startBalanceLabel = `Starting ${isInvoiceModeWeek ? 'week' : 'monthly'} balance`
+		const endBalanceLabel = `Ending ${isInvoiceModeWeek ? 'week' : 'monthly'} balance`
+		const invoice = isInvoiceModeMonth
+			? weekInvoiceData.Total
+			: weekInvoiceData[activeItem]
+		const endBalance = (Number(balance) - Number(invoice?.total?.usd.toFixed(2))).toFixed(2)
+
+		return (
+			<Form>
+				<Form.Field>
+					<label>Period</label>
+					<div id='date-range-picker'>
+						<DateRangePicker
+							onChange={onChangeDateRange}
+							value={dateRange}
+						/>
+					</div>
+				</Form.Field>
+				<Form.Field>
+					<label>Invoice Number</label>
+					<Input labelPosition='left' type='text' placeholder='Amount'>
+						<Label basic>#</Label>
+						<input value={invoiceNumber} onChange={onChangeInvoiceNumber} />
+					</Input>
+				</Form.Field>
+				<Form.Field>
+					<label>Project</label>
+					<Dropdown value={project} placeholder='Project' search selection
+						onChange={onChangeProject}
+						options={dropdownOptions} />
+				</Form.Field>
+				<Form.Field>
+					<label>Invoice Mode</label>
+					<Dropdown value={invoiceMode} placeholder='Select invoice mode' selection
+						onChange={onChangeInvoiceMode}
+						options={invoiceModeOptions} />
+				</Form.Field>
+				{renderSelectWeekDropdown()}
+				<Form.Field>
+					<label>{startBalanceLabel}</label>
+					<Input labelPosition='left' type='text' placeholder='Amount'>
+						<Label basic>$</Label>
+						<input value={balance} onChange={onChangeStartBalance} />
+					</Input>
+				</Form.Field>
+				<Form.Field>
+					<label>{endBalanceLabel}</label>
+					<Input labelPosition='left' type='text' placeholder='Amount'>
+						<Label basic>$</Label>
+						<input value={endBalance} readOnly onChange={(e) => { }} />
+					</Input>
+				</Form.Field>
+				{renderNextMonthEstimateInput()}
+				<Form.TextArea label='From' placeholder='From Address...' value={from} onChange={onChangeFromAddress} />
+				<Form.TextArea label='To' placeholder='To Address...' onChange={onChangeToAddress} value={to} />
+			</Form>
+		)
+	}
+
+
+	const onChangeWorkerRole = (role, key) => {
+		const updatedCardData = {
+			...cardData,
+			[key]: {
+				...cardData[key],
+				role,
+			}
+		}
+		console.log({updatedCardData})
+		dispatch(setCardData(updatedCardData))
+	}
+
+	const renderCardTables = () => {
+		return Object.keys(cardData).map((key) => (
+			<Table celled >
+				<Table.Header>
+					<Table.Row >
+						<Table.HeaderCell colSpan='3'>
+							<div style={{display: 'flex',flexDirection: 'row', alignItems: 'center'}}>
+								<span>{key} :</span>
+								<Dropdown
+									onChange={(e, data) => onChangeWorkerRole(data.value, key)}
+									style={{ width: 200, border: 0, backgroundColor: '#f9fafb'}}
+									placeholder='Select Role'
+									fluid
+									value={cardData[key].role}
+									selection
+									options={[
+										{
+											key: 'Team Member',
+											text: 'Team Member',
+											value: 'Team Member',
+										},
+										{
+											key: 'QA Person',
+											text: 'QA Person',
+											value: 'QA Person',
+										},
+									]}
+								/>
+							</div>
+						</Table.HeaderCell>
+					</Table.Row>
+					<Table.Row>
+						<Table.HeaderCell textAlign='center' width='2'>
+							Card No
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+							Card Title
+						</Table.HeaderCell>
+						<Table.HeaderCell textAlign='center' width='3'>
+							No of Days
+						</Table.HeaderCell>
+					</Table.Row>
+				</Table.Header>
+				<Table.Body>
+					{
+						cardData[key]?.cards?.map((card, index) => (
+							<Table.Row>
+								<Table.Cell textAlign='center'>
+									{index+1}
+								</Table.Cell>
+								<Table.Cell>
+									{card.cardName}
+								</Table.Cell>
+								<Table.Cell textAlign='center'>
+									{cardData[key].role === 'Team Member' ? card.noOfDaysWorkedAsTeamMember : card.noOfDaysWorkedAsQAPerson}
+								</Table.Cell>
+							</Table.Row>
+						))
+					}
+				</Table.Body>
+				<Table.Footer>
+					<Table.Row>
+						<Table.HeaderCell>
+							<b></b>
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+							<b>Total No of Cards: {cardData[key]?.total?.cardTotal}</b>
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+							<b>Total No of Days: {cardData[key].role === 'Team Member' ? cardData[key]?.total?.totalDays?.asTeamMember : cardData[key]?.total?.totalDays?.asQAPerson}</b>
+						</Table.HeaderCell>
+					</Table.Row>
+					<Table.Row>
+						<Table.HeaderCell>
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+							<b></b>
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+							<b>Average: {cardData[key].role === 'Team Member' ? cardData[key]?.total?.average?.asTeamMember : cardData[key]?.total?.average?.asQAPerson}</b>
+						</Table.HeaderCell>
+					</Table.Row>
+				</Table.Footer>
+			</Table>
+		))
+	}
+
 	return (
 		<>
 			<AppHeader />
 			<div className="home-container">
 				<Grid>
 					<Grid.Column mobile={16} tablet={5} computer={5}>
-						<Form>
-							<Form.Field>
-								<label>Dates</label>
-								<div id='date-range-picker'>
-									<DateRangePicker
-										// minDate={minDate}
-										// maxDate={maxDate}
-										onChange={onChangeDateRange}
-										value={dateRange}
-									/>
-								</div>
-							</Form.Field>
-							<Form.Field>
-								<label>Invoice Number</label>
-								<Input labelPosition='left' type='text' placeholder='Amount'>
-									<Label basic>#</Label>
-									<input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
-								</Input>
-							</Form.Field>
-							{/* <Form.Field>
-							<label>Date</label>
-							<input />
-						</Form.Field> */}
-							<Form.Field>
-								<label>Project</label>
-								<Dropdown value={project} placeholder='Project' search selection
-									onChange={(e, data) => {
-										setProject(data.value)
-									}}
-									options={Object.keys(projects).map(key => ({
-										key,
-										value: key,
-										text: projects[key].name
-
-									}))} />
-							</Form.Field>
-							<Form.Field>
-								<label>Invoice Mode</label>
-								<Dropdown value={invoiceMode} placeholder='Select invoice mode' selection
-									onChange={(e, data) => {
-										setInvoiceMode(data.value)
-									}}
-									options={[
-										{
-											key: 'week',
-											value: 'week',
-											text: 'Week'
-										},
-										{
-											key: 'month',
-											value: 'month',
-											text: 'Month'
-										},
-									]} />
-							</Form.Field>
-							{
-								invoiceMode === 'week' && (
-									<Form.Field>
-										<label>Select Week</label>
-										<Dropdown value={activeItem} placeholder='Select week' selection
-											onChange={(e, data) => {
-												setActiveItem(data.value)
-											}}
-											options={Object.keys(weekInvoiceData).filter(key => key !== 'Total').map(key => ({
-												key,
-												value: key,
-												text: `${key}: ${moment(weekInvoiceData[key].start).format('DD/MM/YY')} - ${moment(weekInvoiceData[key].end).format('DD/MM/YY')}`,
-											}))} />
-									</Form.Field>
-								)
-							}
-							<Form.Field>
-								<label>{`Starting ${invoiceMode === 'week' ? 'week' : 'monthly'} balance`}</label>
-								<Input labelPosition='left' type='text' placeholder='Amount'>
-									<Label basic>$</Label>
-									<input value={balance} onChange={(e) => setBalance(e.target.value)} />
-								</Input>
-							</Form.Field>
-							<Form.Field>
-								<label>{`Ending ${invoiceMode === 'week' ? 'week' : 'monthly'} balance`}</label>
-								<Input labelPosition='left' type='text' placeholder='Amount'>
-									<Label basic>$</Label>
-									<input value={(Number(balance) - Number(
-										invoiceMode === 'month'
-											? weekInvoiceData.Total?.total?.usd.toFixed(2)
-											: weekInvoiceData[activeItem]?.total?.usd.toFixed(2)
-									)).toFixed(2)} readOnly onChange={(e) => { }} />
-								</Input>
-							</Form.Field>
-							{
-								invoiceMode === 'month' && (
-									<Form.Field>
-										<label>Total estimate for the month of {moment(dateRange[0]).add(1, 'month').format('MMMM')}</label>
-										<Input labelPosition='left' type='text' placeholder='Amount'>
-											<Label basic>$</Label>
-											<input value={nextMonthEstimate} onChange={(e) => { setNextMonthEstimate(e.target.value) }} />
-										</Input>
-									</Form.Field>
-								)
-							}
-							<Form.TextArea label='From' placeholder='From Address...' value={from} onChange={(e) => setFrom(e.target.value)} />
-							<Form.TextArea label='To' placeholder='To Address...' onChange={(e) => setTo(e.target.value)} value={to} />
-						</Form>
+						{renderInvoiceForm()}
 					</Grid.Column>
 					<Grid.Column mobile={16} tablet={11} computer={11}>
-						<input hidden onChange={(e) => {
-							if (e.target.files.length > 0) {
-								dispatch(setSelectedFile(e.target.files[0]))
-							}
-							console.log(e.target.files[0])
-						}} accept='.csv' ref={documentRef} type='file' />
-						{!selectedFile ? (
-							<div className='csv-selector'>
-								<Segment placeholder>
-									<Header icon>
-										<Icon name='excel file outline' />
-										{selectedFile?.name || 'No document selected.'}
-									</Header>
-									<Button onClick={() => documentRef.current.click()} primary> {!selectedFile ? 'Add Document' : 'Change Document'}</Button>
-								</Segment>
-							</div>
-						) : (
-								<div style={{ marginBottom: 20 }}>
-									<Button as='div' labelPosition='left'>
-										<Label as='a' basic pointing='right'>
-											{selectedFile.name}
-										</Label>
-										<Button onClick={() => documentRef.current.click()} icon>
-											Change
-									</Button>
-									</Button>
-								</div>
-							)}
-						{
-							selectedFile && weekInvoiceData && Object.keys(weekInvoiceData).length > 0 && (
-								<div>
-									{
-										invoiceMode === 'month' && (
-											<Menu color='blue' secondary className='menu'>
-												{((Object.keys(weekInvoiceData) || []).map((key, index) => {
-													return (
-														<Menu.Item
-															name={key}
-															active={activeItem === key}
-															children={key}
-															onClick={handleItemClick}
-														/>
-													)
-												}))}
-											</Menu>
-										)
-									}
-									<Segment>
-										<Header as='h5'>
-											{`Invoice #${zeroPad(Number(invoiceNumber), 4)}`}
-										</Header>
-										<Header as='h5'>
-											Period: {moment(weekInvoiceData[activeItem]?.start).format('MMMM D ,YYYY ')} through {moment(weekInvoiceData[activeItem]?.end).format('MMMM D ,YYYY ')}
-										</Header>
-										<Table celled striped>
-											<Table.Header>
-												<Table.Row>
-													<Table.HeaderCell>#</Table.HeaderCell>
-													<Table.HeaderCell>Worker</Table.HeaderCell>
-													{activeItem !== 'Total' && <Table.HeaderCell>Hours Worked</Table.HeaderCell>}
-													<Table.HeaderCell>Hours Billed</Table.HeaderCell>
-													<Table.HeaderCell>Hourly Rate</Table.HeaderCell>
-													<Table.HeaderCell>Total in USD</Table.HeaderCell>
-												</Table.Row>
-											</Table.Header>
-											<TableBody
-												activeItem={activeItem}
-												onChangeHoursWorked={onChangeHoursWorked} data={data}
-												total={weekInvoiceData[activeItem]?.total || {}}
-												invoiceData={weekInvoiceData[activeItem]?.data || {}}
-												setHourlyRate={setHourlyRate}
-											/>
-										</Table>
-									</Segment>
-								</div>
-							)
-						}
+						{renderHiddenFileInput()}
+						{renderHiddenJSONFileInput()}
+						{renderFileInput()}
+						{renderInvoiceTabsAndTable()}
 						<br />
 						<br />
-						<Button onClick={() => {
-							navigate('/week_invoice', {
-								state: {
-									nextMonthEstimate,
-									invoiceMode,
-									invoiceData: (invoiceMode === 'month') ? (weekInvoiceData?.Total?.data || {}) : (weekInvoiceData[activeItem]?.data || {}),
-									from,
-									to,
-									dates: [weekInvoiceData[activeItem]?.start, weekInvoiceData[activeItem]?.end],
-									startBalance: balance,
-									endBalance: (Number(balance) - Number(
-										invoiceMode === 'month'
-											? weekInvoiceData.Total?.total?.usd.toFixed(2)
-											: weekInvoiceData[activeItem]?.total?.usd.toFixed(2)
-									)).toFixed(2),
-									invoiceNumber: zeroPad(Number(invoiceNumber), 4),
-									total: (invoiceMode === 'month') ? (weekInvoiceData?.Total?.total || {}) : (weekInvoiceData[activeItem]?.total || {}),
-									project: projects[project].name
-								}
-							});
-						}} color='blue' size='medium'>Generate Invoice</Button>
+						{renderJSONFileInput()}
+						{renderCardTables()}
+						<br />
+						<br />
+						{renderGenerateInvoiceButton()}
+						{/* {renderDownloadInvoiceButton()} */}
 					</Grid.Column>
 				</Grid>
 			</div>

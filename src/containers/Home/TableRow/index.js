@@ -1,7 +1,7 @@
 import { createRef, useEffect, useState } from "react"
 import { Table, Dropdown, Input, Label } from 'semantic-ui-react'
 
-const TableRow = ({ data, no, name, setHourlyRate, onChangeHoursWorked, activeItem }) => {
+const TableRow = ({ data, no, name, setHourlyRate, onChangeHoursWorked, activeItem, cardData }) => {
 
 	const [hoursWorked, setHoursWorked] = useState(data.hoursWorked)
 	const inputRef = createRef()
@@ -15,7 +15,7 @@ const TableRow = ({ data, no, name, setHourlyRate, onChangeHoursWorked, activeIt
 		<Table.Cell>{data.worker}</Table.Cell>
 		{activeItem !== 'Total' && (<Table.Cell>
 				<Input type='text' {...(data.hoursWorked !== hoursWorked) && { labelPosition: 'left' }} placeholder='Amount'>
-					<input ref={inputRef} style={{ textAlign: 'center' }} value={hoursWorked} onChange={(e) => {
+					<input ref={inputRef} style={{ textAlign: 'center', width: 100 }} value={hoursWorked} onChange={(e) => {
 						setHoursWorked(e.target.value)
 					}} />
 					{(data.hoursWorked !== hoursWorked) && <Label onClick={() => {
@@ -24,7 +24,7 @@ const TableRow = ({ data, no, name, setHourlyRate, onChangeHoursWorked, activeIt
 				</Input>
 			</Table.Cell>
 		)}
-		<Table.Cell>{data.hoursBilled}</Table.Cell>
+		<Table.Cell textAlign='center'>{data.hoursBilled}</Table.Cell>
 		{/* <td>{hours}</td> */}
 		<Table.Cell>
 			<Dropdown
@@ -72,7 +72,9 @@ const TableRow = ({ data, no, name, setHourlyRate, onChangeHoursWorked, activeIt
 				}} basic>Save</Label>}
 			</Input> */}
 		</Table.Cell>
-		<Table.Cell>${data.totalInUSD.toFixed(2)}</Table.Cell>
+		<Table.Cell textAlign='center'>${data.totalInUSD.toFixed(2)}</Table.Cell>
+		<Table.Cell textAlign='center'>{cardData?.total?.cardTotal || '--'}</Table.Cell>
+		<Table.Cell textAlign='center'>{(cardData?.role === 'Team Member' ? cardData?.total?.average?.asTeamMember : cardData?.total?.average?.asQAPerson) || '--'}</Table.Cell>
 		</Table.Row>
 }
 

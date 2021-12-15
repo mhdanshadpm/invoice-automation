@@ -22,8 +22,6 @@ const LoginForm = () => {
       } else {
         alert('authentication failed')
       }
-
-      console.log(users);
     }).catch(e=> console.log({e}))
   }
   return (

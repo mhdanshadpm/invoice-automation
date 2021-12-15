@@ -1,11 +1,14 @@
 import { useLocation } from 'react-router-dom';
 import moment from 'moment';
 import './index.css'
-import { createRef/* , useEffect */ } from 'react';
+import { createRef, useEffect} from 'react';
 // import HTMLToDOCX from 'html-to-docx';
 import { numberWithCommas } from '../../utils/functions';
+import jsPDF from 'jspdf';
+import { Table } from 'semantic-ui-react';
+import stringSimilarity from 'string-similarity';
 
-const WeekInvoice = (props) => {
+const WeekInvoice = () => {
 	const { state } = useLocation()
   const divRef = createRef();
 
@@ -13,30 +16,43 @@ const WeekInvoice = (props) => {
 
   const endBalance = `$ ${Number(state.endBalance)}`
 
-
+  const doc = new jsPDF()
   const totalPayable = (Number(state.nextMonthEstimate) - Number(state.endBalance)).toFixed(2)
 
 	console.log({ state })
 	// const getDocx = async (string) => {
 	// 	return await HTMLToDOCX(string)
 	// }
-  // useEffect(() => {
-  //   console.log(divRef.current.innerHTML)
-  //   getDocx(divRef.current.innerHTML, null, {
-  //     margins: {
-  //       top: 2,
-  //       bottom: 10,
-  //       left: 0,
-  //       right: 5,
-  //     }
-  //   }).then((r) => {
-  //     const myFile = new File([r], "invoice.docx", {
-  //       type: r.type
-  //     })
-  //     console.log({ r, myFile })
-  //     window.open(URL.createObjectURL(myFile), '_blank')
-  //   })
-	// }, [])
+  useEffect(() => {
+		console.log(divRef.current.innerHTML)
+		// doc.html(divRef.current, {
+		// 	callback: function (doc) {
+		// 		doc.save();
+		// 	},
+		// 	autoPaging: 'text',
+		// 	x: 10,
+		// 	y: 10
+		// });
+    // getDocx(divRef.current.innerHTML, null, {
+    //   margins: {
+    //     top: 2,
+    //     bottom: 10,
+    //     left: 0,
+    //     right: 5,
+    //   }
+    // }).then((r) => {
+    //   const myFile = new File([r], "invoice.docx", {
+    //     type: r.type
+    //   })
+    //   console.log({ r, myFile })
+    //   window.open(URL.createObjectURL(myFile), '_blank')
+    // })
+	}, [])
+
+	const getBestMatch = (key, array) => {
+		var matches = stringSimilarity.findBestMatch(key, array);
+		return matches?.bestMatch?.rating > 0.6 ? matches?.bestMatch?.target : key
+	}
 	return (
 		<div ref={divRef} >
 
@@ -49,7 +65,7 @@ const WeekInvoice = (props) => {
 							<div style={{
 								fontSize: 18,
 								fontFamily: 'Arial',
-								marginBottom: 15,
+								marginBottom: 18,
 								fontWeight: 900,
 							}}>Invoice #{state.invoiceNumber}</div><br />
 							<div style={{
@@ -122,7 +138,9 @@ const WeekInvoice = (props) => {
 						<th>Avg age (in working days)</th>
 					</tr>
 					{Object.keys(state.invoiceData).map((key, index) => {
-						const data = state.invoiceData[key]
+						const data = state.invoiceData[key];
+						const hasCardData = state.cardData && Object.keys(state.cardData).length > 0;
+						const cardKey = hasCardData ? getBestMatch(key, Object.keys(state.cardData) || Object.keys(state.invoiceData)) : key
 						return (
 							<tr key={key}>
 								<td>{index + 1}</td>
@@ -133,8 +151,8 @@ const WeekInvoice = (props) => {
 								<td>{data.hoursBilled}</td>
 								<td>$ {data.hourlyRate}</td>
 								<td>{Number(data.totalInUSD).toFixed(2)}</td>
-								<td>0</td>
-								<td>0</td>
+								<td>{state.cardData[cardKey]?.total?.cardTotal || '--'}</td>
+								<td>{(state.cardData[cardKey]?.role === 'Team Member' ? state.cardData[cardKey]?.total?.average?.asTeamMember : state.cardData[cardKey]?.total?.average?.asQAPerson ) || '--'}</td>
 							</tr>
 						)
 					})}
@@ -214,4 +232,4 @@ const WeekInvoice = (props) => {
 	)
 }
 
-export {WeekInvoice}
+export { WeekInvoice }

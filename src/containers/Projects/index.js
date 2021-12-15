@@ -40,7 +40,6 @@ export const Projects = () => {
         ..._projects,
         [doc.id]: doc.data(),
       }), {})
-      console.log(projects);
       dispatch(storeProjects(projects))
 
     })
@@ -83,9 +82,6 @@ export const Projects = () => {
 
   const onSubmitProjectForm = (values) => {
     formik.setSubmitting(true)
-    console.log({
-      submitData: values
-    })
     if (selectedProject) {
       if (selectedProject === 'add_new_project') {
         addProject(values).then((r) => updateProjectsList().then(() => {
@@ -112,8 +108,6 @@ export const Projects = () => {
       return <div style={{ margin: '10px 0px', color: '#9f3a38'}}>{formik.errors[key]}</div>
     }
   }
-
-  console.log({ values: formik.values, projects })
 
   const onItemClick = (key) => {
     setSelectedProject(key)

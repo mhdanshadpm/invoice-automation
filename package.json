@@ -38,6 +38,7 @@
     "semantic-ui-react": "^2.0.4",
     "sha-1": "^1.0.0",
     "string-similarity": "^4.0.4",
+    "styled-components": "^5.3.3",
     "web-vitals": "^1.0.1",
     "yup": "^0.32.11"
   },

@@ -72,6 +72,7 @@ const Home = () => {
 
 	const dispatch = useDispatch()
 	const [dateRange, setDateRange] = useState([new Date(), new Date()]);
+	const [sprintDateRange, setSprintDateRange] = useState([new Date(), new Date()]);
 	useEffect(() => {
 		// getTestData().then(r => console.log({ r: r.val() }))
 	}, [])
@@ -309,11 +310,19 @@ const Home = () => {
 			}
 		}, {})
 
+
+		weeks2Sprint
+
 		dispatch(setWeekInvoiceData(weeksInvoice))
 
 		findAndSaveTotalInvoiceData(weeksInvoice)
-
+		setSprintDateRange([
+			moment(dateRange[0]).day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
+			moment(dateRange[0]).day(3).format('YYYY/MM/DD'),
+		])
 	}, [dateRange])
+
+
 	const onChangeDateRange = (range) => {
 		setDateRange(range)
 	}
@@ -343,49 +352,122 @@ const Home = () => {
 
 	useEffect(() => {
 		if (selectedJSONFile) {
-			selectedJSONFile.text().then(text => {
+			console.log( 'SELECTED JSON FILE', {selectedJSONFile})
+			selectedJSONFile[0].text().then(text => {
 				const jsonData = JSON.parse(text)
-				const jsonDataByAssignee = jsonData.reduce((_jsonDataByAssignee, item) => {
-					return {
-						..._jsonDataByAssignee,
-						[item.assignee]: [
-							...(_jsonDataByAssignee[item.assignee] || []),
-							item,
-						]
-					}
-				}, {})
+				const jsonDataByAssignee = jsonData
+				console.log('jsonDataByAssignee:', {jsonDataByAssignee})
 				const cardData = Object.keys(jsonDataByAssignee).reduce((_cardData, key) => {
-					const cards = jsonDataByAssignee[key].map(item => {
-						const cardName = item.summary;
-						const histories = item.changeLog.histories;
-						const todoDate = histories[histories.length - 1]?.created;
-						const inQRDate = histories.find(item => item.items[0].toString.toUpperCase() === 'IN QA')?.created;
-						const inStagingDate = histories.find(item => item.items[0].toString.toUpperCase() === 'IN STAGING')?.created;
+					const assignedIssues = jsonDataByAssignee[key]|| [];
+					const assignedIssuesFiltered = assignedIssues.filter(item => !!item);
+					const cards = assignedIssuesFiltered.map(item => {
+						const cardName = item.key;
+						const histories = item.changelog.histories;
+						const getDate = (status) => {
+
+							let index = 0;
+							let date = histories.find(item => item.items[0].toString.toUpperCase() === status[index])?.created;
+							while (!!!date && index + 1 < status.length) {
+								index = index + 1
+								date = histories.find(item => item.items[0].toString.toUpperCase() === status[index])?.created;
+								console.log('DATE INSIDE('+status[index]+'): ', date )
+							}
+							console.log('DATE  :',date)
+							return date
+						}
+						let todoDate = histories.find(item => (item.items[0].toString.toUpperCase() === 'IN PROGRESS' || item.items[0].field === 'Parent' || item.items[0].field === 'assignee'))?.created;
+
+						const actualToDoDate = todoDate;
+
+						if (moment(todoDate).isBefore(sprintDateRange[0])) {
+							todoDate = sprintDateRange[0]
+						} else if (moment(todoDate).isAfter(sprintDateRange[1])) {
+							todoDate = sprintDateRange[1]
+						}
+						// const inQADate = histories.find(item => item.items[0].toString.toUpperCase() === 'IN PEER REVIEW' || item.items[0].toString.toUpperCase() === 'NEEDS QA' || item.items[0].toString.toUpperCase() === 'IN QA' || item.items[0].toString.toUpperCase() === 'DONE')?.created;
+						let inPeerReview = getDate([
+							'IN PEER REVIEW',
+							'NEEDS QA',
+							'IN QA',
+							'IN DEV',
+							'DONE'
+						]);
+						const actualInPeerReview = inPeerReview
+						if (!inPeerReview || moment(moment(inPeerReview).format('YYYY/MM/DD')).isBefore(moment(todoDate).format('YYYY/MM/DD'))) {
+							inPeerReview = todoDate
+						}
+						if (moment(inPeerReview).isBefore(sprintDateRange[0])) {
+							inPeerReview = sprintDateRange[0]
+						} else if (moment(inPeerReview).isAfter(sprintDateRange[1])) {
+							inPeerReview = sprintDateRange[1]
+						}
+
+						let inQADate = getDate([
+							'IN QA',
+							'QA PASSED',
+							'READY FOR STAGING',
+							'IN STAGING',
+							'IN DEV',
+							'DONE'
+						]);
+						const actualInQADate = inQADate
+						if (!inQADate || moment(moment(inQADate).format('YYYY/MM/DD')).isBefore(moment(inPeerReview).format('YYYY/MM/DD'))) {
+							inQADate = inPeerReview
+						}
+						if (moment(inQADate).isBefore(sprintDateRange[0])) {
+							inQADate = sprintDateRange[0]
+						} else if (moment(inQADate).isAfter(sprintDateRange[1])) {
+							inQADate = sprintDateRange[1]
+						}
+						// const inStagingDate = histories.find(item => item.items[0].toString.toUpperCase() === 'QA PASSED' || item.items[0].toString.toUpperCase() === 'IN STAGING' || item.items[0].toString.toUpperCase() === 'READY FOR STAGING' || item.items[0].toString.toUpperCase() === 'DONE')?.created;
+						let inStagingDate = getDate([
+							'QA PASSED',
+							'READY FOR STAGING',
+							'IN STAGING',
+							'IN DEV',
+							'DONE'
+						])
+						const actualInStagingDate = inStagingDate
+						if (!inStagingDate) {
+							inStagingDate = inQADate
+						}
+						if (moment(inStagingDate).isBefore(sprintDateRange[0])) {
+							inStagingDate = sprintDateRange[0]
+						} else if (moment(inStagingDate).isAfter(sprintDateRange[1]) ) {
+							inStagingDate = sprintDateRange[1]
+						}
+
+
 						const noOfDaysWorkedAsTeamMember = moment()?.isoWeekdayCalc({
 							rangeStart: todoDate,
-							rangeEnd: inQRDate,
+							rangeEnd: inPeerReview,
 							weekdays: [1, 2, 3, 4, 5], //weekdays Mon to Fri
 						})
 						const noOfDaysWorkedAsQAPerson =  moment()?.isoWeekdayCalc({
-							rangeStart: inQRDate,
+							rangeStart: inQADate,
 							rangeEnd: inStagingDate,
 							weekdays: [1, 2, 3, 4, 5], //weekdays Mon to Fri
 						})
-						return {cardName, todoDate, inQRDate, inStagingDate, noOfDaysWorkedAsQAPerson, noOfDaysWorkedAsTeamMember}
+						console.log({ cardName, todoDate, inQADate, inStagingDate, noOfDaysWorkedAsQAPerson, noOfDaysWorkedAsTeamMember })
+						return {cardName, todoDate, inPeerReview, inQADate, inStagingDate, noOfDaysWorkedAsQAPerson, noOfDaysWorkedAsTeamMember, actualInPeerReview, actualInQADate, actualInStagingDate, actualToDoDate}
 					})
-					const cardTotal = cards.length;
+					const cardTotal = cards.length
+
 					const totalDays = cards.reduce((_totalDays, card) => ({
 						asTeamMember: _totalDays.asTeamMember + card.noOfDaysWorkedAsTeamMember,
 						asQAPerson: _totalDays.asQAPerson + card.noOfDaysWorkedAsQAPerson,
 					}), { asTeamMember: 0, asQAPerson: 0 })
+
 					const average = {
-						asTeamMember: Number(totalDays.asTeamMember) / Number(cardTotal),asQAPerson: Number(totalDays.asQAPerson) / Number(cardTotal)
+						asTeamMember: (Number(totalDays.asTeamMember) / Number(cardTotal)).toFixed(1),
+						asQAPerson: (Number(totalDays.asQAPerson) / Number(cardTotal)).toFixed(1)
 					}
+					const role = 'Team Member';
 					return {
 						..._cardData,
 						[key]: {
 							cards,
-							role: 'Team Member',
+							role,
 							total: {
 								cardTotal,
 								totalDays,
@@ -398,7 +480,7 @@ const Home = () => {
 				dispatch(setCardData(cardData))
 			})
 		}
-	}, [selectedJSONFile])
+	}, [selectedJSONFile, sprintDateRange])
 
 	useEffect(() => {
 
@@ -444,11 +526,15 @@ const Home = () => {
 			cardData,
 		}
 
-		const navigateToInvoice = () => navigate('/week_invoice', {
+		// const navigateToInvoice = () => navigate('/week_invoice', {
+		// 	state
+		// });
+		const navigateToInvoice = () => navigate('/invoice', {
 			state
 		});
 
 		return selectedFile && (
+			// <Button onClick={navigateToInvoice} color='blue' size='medium'>Generate Invoice</Button>
 			<Button onClick={navigateToInvoice} color='blue' size='medium'>Generate Invoice</Button>
 		)
 	}
@@ -553,11 +639,11 @@ const Home = () => {
 				<div style={{ marginBottom: 20 }}>
 					<Button as='div' labelPosition='left'>
 						<Label as='a' basic pointing='right'>
-							{selectedJSONFile.name}
+							{Object.keys(selectedJSONFile).map((key, index) => <span>{index === 0 ? '' : <span>&nbsp; | &nbsp;</span>} {selectedJSONFile[key].name}</span>) }
 						</Label>
 						<Button onClick={onClickJSONFileInput} icon>
 							Change
-									</Button>
+						</Button>
 					</Button>
 				</div>
 			)
@@ -608,7 +694,7 @@ const Home = () => {
 	}
 	const onChangeJSONFile = (e) => {
 		if (e.target.files.length > 0) {
-			dispatch(setSelectedJSONFile(e.target.files[0]))
+			dispatch(setSelectedJSONFile(e.target.files))
 		}
 	}
 
@@ -617,7 +703,7 @@ const Home = () => {
 	)
 
 	const renderHiddenJSONFileInput = () => (
-		<input hidden onChange={onChangeJSONFile} accept='.json' ref={jsonRef} type='file' />
+		<input hidden onChange={onChangeJSONFile} accept='.json' ref={jsonRef} type='file' multiple={(invoiceMode === 'month')} />
 	)
 
 	const renderSelectWeekDropdown = () => {
@@ -766,7 +852,7 @@ const Home = () => {
 			<Table celled >
 				<Table.Header>
 					<Table.Row >
-						<Table.HeaderCell colSpan='3'>
+						<Table.HeaderCell colSpan='7'>
 							<div style={{display: 'flex',flexDirection: 'row', alignItems: 'center'}}>
 								<span>{key} :</span>
 								<Dropdown
@@ -799,6 +885,18 @@ const Home = () => {
 						<Table.HeaderCell>
 							Card Title
 						</Table.HeaderCell>
+						<Table.HeaderCell>
+							In Progress
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+							In Peer Review
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+							In QA
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+							In Staging
+						</Table.HeaderCell>
 						<Table.HeaderCell textAlign='center' width='3'>
 							No of Days
 						</Table.HeaderCell>
@@ -806,13 +904,37 @@ const Home = () => {
 				</Table.Header>
 				<Table.Body>
 					{
-						cardData[key]?.cards?.map((card, index) => (
+						cardData[key].cards?.map((card, index) => (
 							<Table.Row>
 								<Table.Cell textAlign='center'>
 									{index+1}
 								</Table.Cell>
 								<Table.Cell>
 									{card.cardName}
+								</Table.Cell>
+								<Table.Cell>
+									{
+										moment(card.todoDate).format('DD/MM/YYYY')
+										//moment(card.todoDate).format('DD/MM/YYYY') + '\n' + moment(card.actualToDoDate).format('DD/MM/YYYY')
+									}
+								</Table.Cell>
+								<Table.Cell>
+									{
+										//moment(card.inPeerReview).format('DD/MM/YYYY') + '\n' + moment(card.actualInPeerReview).format('DD/MM/YYYY')
+										moment(card.inPeerReview).format('DD/MM/YYYY')
+									}
+								</Table.Cell>
+								<Table.Cell>
+									{
+										moment(card.inQADate).format('DD/MM/YYYY')
+										//moment(card.inQADate).format('DD/MM/YYYY') + '\n' + moment(card.actualInQADate).format('DD/MM/YYYY')
+									}
+								</Table.Cell>
+								<Table.Cell>
+									{
+										moment(card.inStagingDate).format('DD/MM/YYYY')
+										// moment(card.inStagingDate).format('DD/MM/YYYY') + '\n' + moment(card.actualInStagingDate).format('DD/MM/YYYY')
+									}
 								</Table.Cell>
 								<Table.Cell textAlign='center'>
 									{cardData[key].role === 'Team Member' ? card.noOfDaysWorkedAsTeamMember : card.noOfDaysWorkedAsQAPerson}
@@ -830,10 +952,27 @@ const Home = () => {
 							<b>Total No of Cards: {cardData[key]?.total?.cardTotal}</b>
 						</Table.HeaderCell>
 						<Table.HeaderCell>
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+						</Table.HeaderCell>
+						<Table.HeaderCell>
 							<b>Total No of Days: {cardData[key].role === 'Team Member' ? cardData[key]?.total?.totalDays?.asTeamMember : cardData[key]?.total?.totalDays?.asQAPerson}</b>
 						</Table.HeaderCell>
+
 					</Table.Row>
 					<Table.Row>
+						<Table.HeaderCell>
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+						</Table.HeaderCell>
+						<Table.HeaderCell>
+						</Table.HeaderCell>
 						<Table.HeaderCell>
 						</Table.HeaderCell>
 						<Table.HeaderCell>

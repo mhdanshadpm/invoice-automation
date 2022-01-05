@@ -5,11 +5,13 @@ import moment from 'moment';
 import { numberWithCommas } from '../../utils/functions';
 import arialBold from '../../assets/fonts/Arial_Bold.ttf';
 import arial from '../../assets/fonts/Arial.ttf';
+import arialExtraBold from '../../assets/fonts/Arial-mt-extra-bold.ttf'
 
 Font.register({
   family: 'Arial', fonts: [
     { src: arial, fontWeight: 'normal' },
     { src: arialBold, fontStyle: 'normal', fontWeight: 'bold' },
+    { src: arialExtraBold, fontStyle: 'normal', fontWeight: 'bolder' },
   ]
 });
 

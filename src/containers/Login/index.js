@@ -41,6 +41,7 @@ const LoginForm = () => {
               iconPosition='left'
               placeholder='Password'
               type='password'
+
             >
               <input value={password} onChange={(e) => setPassword(e.target.value)} />
               </Form.Input>

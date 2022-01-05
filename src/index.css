@@ -11,3 +11,22 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* @font-face {
+  font-family: 'Arial';
+  font-style: normal;
+  font-weight: normal;
+  src: local('Arial'), url('../src/assets/fonts/arial.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Arial';
+  font-style: normal;
+  font-weight: bold;
+  src: local('Arial'), url('../src/assets/fonts/Arial_Bold.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Arial';
+  font-style: normal;
+  font-weight: bolder;
+  src: local('Arial'), url('../src/assets/fonts/Arial-mt-extra-bold.ttf') format('truetype');
+} */

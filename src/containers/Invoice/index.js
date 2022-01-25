@@ -5,9 +5,14 @@ import { useLocation } from "react-router-dom";
 import moment from 'moment';
 import stringSimilarity from 'string-similarity';
 import { get } from "firebase/database";
-import { numberWithCommas } from "../../utils/functions";
+import { getNextDayOfTheWeek, numberWithCommas } from "../../utils/functions";
 import jsPDF from "jspdf";
 import { Button } from "semantic-ui-react";
+import { useSelector } from "react-redux";
+import { selectProjects, storeProjects } from "../../store/projectsSlice";
+import { useDispatch } from "react-redux";
+import { useFirebase } from "../../firebase";
+import { selectAppData } from "../../store/invoiceSlice";
 
 
 const Styles = styled.div`
@@ -136,6 +141,42 @@ function AddressTable({ columns, data}) {
             <tr {...row.getRowProps()}>
               {row.cells.map((cell) => {
                 return <td {...cell.getCellProps()}>{cell.render("Cell")}</td>;
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function BillingInfoTable({ columns, data }) {
+  // Use the state and functions returned from useTable to build your UI
+  const {
+    getTableProps,
+    getTableBodyProps,
+    headerGroups,
+    rows,
+    prepareRow
+  } = useTable({
+    columns,
+    data
+  });
+
+  // Render the UI for your table
+  return (
+    <table style={{ width: "100%" }} {...getTableProps()}>
+      <tbody {...getTableBodyProps()} style={{
+        verticalAlign: 'top',
+        whiteSpace: 'pre-wrap',
+        textAlign: 'left'
+      }}>
+        {rows.map((row, i) => {
+          prepareRow(row);
+          return (
+            <tr {...row.getRowProps()}>
+              {row.cells.map((cell, index) => {
+                return <td style={{ width: "50%", textAlign: index === 0 ? "left" : "right" }} {...cell.getCellProps()}><b>{cell.render("Cell")}</b></td>;
               })}
             </tr>
           );
@@ -349,6 +390,12 @@ function Invoice() {
   console.log({document: document.body})
   const { state } = useLocation()
 
+  const { getProjectsList, setProject, setInvoiceAppInfo } = useFirebase()
+
+  const projects = useSelector(selectProjects);
+  const appData = useSelector(selectAppData);
+  const dispatch = useDispatch();
+
   const [showPrintButton, setShowPrintButton] = useState(true)
 
   const printAsPDF = () => {
@@ -358,6 +405,42 @@ function Invoice() {
       setShowPrintButton(true)
     }, 0)
 
+  }
+
+  const updateProjectsList = () => {
+    return getProjectsList().then(r => {
+      const projects = r.docs.reduce((_projects, doc) => ({
+        ..._projects,
+        [doc.id]: doc.data(),
+      }), {})
+      dispatch(storeProjects(projects))
+
+    })
+  }
+
+  const saveBalance = () => {
+    const project = projects[state.project.key]
+    if (state.invoiceMode === 'month') {
+      setProject(state.project.key, {
+        ...project,
+        month_balance: state.endBalance
+      }).then(r => updateProjectsList().then(() => {
+        setInvoiceAppInfo({
+          ...appData,
+          last_invoice_number: state.invoiceNumber
+        }).then(() => alert('Saved successfully'))
+      })).catch(() => alert('Something went wrong'))
+    } else {
+      setProject(state.project.key, {
+        ...project,
+        week_balance: state.endBalance
+      }).then(r => updateProjectsList().then(() => {
+        setInvoiceAppInfo({
+          ...appData,
+          last_invoice_number: state.invoiceNumber
+        }).then(() => alert('Saved successfully'))
+      })).catch(() => alert('Something went wrong'))
+    }
   }
 
   const totalPayable = (Number(state.nextMonthEstimate) - Number(state.endBalance)).toFixed(2)
@@ -376,6 +459,19 @@ function Invoice() {
       {
         Header: "To",
         accessor: "to"
+      }
+    ],
+    []
+  );
+  const billingInfoTableColumns = React.useMemo(
+    () => [
+      {
+        Header: '',
+        accessor: 'period'
+      },
+      {
+        Header:'',
+        accessor:  'billingDate',
       }
     ],
     []
@@ -425,46 +521,6 @@ function Invoice() {
     []
   );
 
-  const columns = React.useMemo(
-    () => [
-      {
-        Header: "Name",
-        columns: [
-          {
-            Header: "First Name",
-            accessor: "firstName"
-          },
-          {
-            Header: "Last Name",
-            accessor: "lastName"
-          }
-        ]
-      },
-      {
-        Header: "Info",
-        columns: [
-          {
-            Header: "Age",
-            accessor: "age"
-          },
-          {
-            Header: "Visits",
-            accessor: "visits"
-          },
-          {
-            Header: "Status",
-            accessor: "status"
-          },
-          {
-            Header: "Profile Progress",
-            accessor: "progress"
-          }
-        ]
-      }
-    ],
-    []
-  );
-
   const addressData = React.useMemo(
     () => [
       {
@@ -474,10 +530,19 @@ function Invoice() {
     ],
     []
   );
+  const billingData = React.useMemo(
+    () => [
+      {
+        period: `Billing Period:  ${moment(state.dates[0]).format('Do')} to ${moment(state.dates[1]).format('Do')} ${moment(state.dates[0]).format('MMMM YYYY')}`,
+        billingDate: `Invoice Date:${moment(state.dates[1]).add(1, 'days').weekday() === 0 ? moment(state.dates[1]).add(2, 'days').format('DD-MM-YYYY') :  moment(state.dates[1]).add(1, 'days').format('DD-MM-YYYY')}`,
+      }
+    ],
+    []
+  );
   const balanceData = React.useMemo(
     () => [
-      { label: "Starr Balance", value: "$1000" },
-      { label: "End Balance", value: "$-1000" }
+      { label: `Starting ${state?.invoiceMode === 'week' ? 'week' : 'monthly'} balance`, value: '$ ' + numberWithCommas(Number(state.startBalance).toFixed(2)) },
+      { label: `Ending ${state?.invoiceMode === 'week' ? 'week' : 'monthly'} balance`, value: '$ ' + numberWithCommas(Number(state.endBalance).toFixed(2)) }
     ],
     []
   );
@@ -492,15 +557,22 @@ function Invoice() {
       hoursWorked: data.hoursWorked,
       hourlyRate: data.hourlyRate,
       totalInUSD: Number(data.totalInUSD).toFixed(2),
-      noOfTickets: state.cardData[cardKey]?.total?.cardTotal || '--',
-      averageAge: (state.cardData[cardKey]?.role === 'Team Member' ? state.cardData[cardKey]?.total?.average?.asTeamMember : state.cardData[cardKey]?.total?.average?.asQAPerson) || '--'
+      noOfTickets: (state?.cardData && state?.cardData[cardKey]?.total?.cardTotal) || '--',
+      averageAge: (state?.cardData && state?.cardData[cardKey]?.role === 'Team Member' ? state.cardData[cardKey]?.total?.average?.asTeamMember : (state?.cardData && state.cardData[cardKey]?.total?.average?.asQAPerson) || '--')
     }
   })
 
 
   return (
     <Styles>
-      {showPrintButton && <Button onClick={printAsPDF}>Print</Button>}
+      {
+        showPrintButton && (
+          <div style={{padding: 10, marginBottom: 50, boxShadow: '0px 1px 3px grey'}}>
+            <Button onClick={printAsPDF}>Print</Button>
+            <Button onClick={saveBalance}>Save Balance & Invoice Number</Button>
+          </div>
+        )
+      }
       <div style={{ width: 800, margin: "auto", paddingRight: 30 }}>
         {
           (state.invoiceMode === 'week') ? (
@@ -513,11 +585,12 @@ function Invoice() {
             )
         }
         {/* <Table columns={columns} data={data} /> */}
+        <br /><BillingInfoTable columns={billingInfoTableColumns} data={billingData} />
         <br /><AddressTable columns={addressTableColumns} data={addressData} />
         <br /><BalanceTable columns={balanceTableColumns} data={balanceData} />
         <br />
         <div style={{ color: '#525659' }}>
-          Work Log - <span style={{fontWeight: 'bolder'}}>{state.project}</span>
+          Work Log - <span style={{fontWeight: 'bolder'}}>{state.project.name}</span>
         </div>
         <br /><InvoiceTable columns={invoiceTableColumns} data={invoiceData} state={state} />
         <br />

@@ -29,7 +29,7 @@ const TableBody = ({ invoiceData, setHourlyRate, total, onChangeHoursWorked, act
 								name={key}
 								data={invoiceData[key]}
 								no={index + 1}
-								cardData={cardData[cardKey] || {}}
+								cardData={cardData && cardData[cardKey] || {}}
 							/>
 						)
 					})

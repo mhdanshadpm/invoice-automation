@@ -14,7 +14,6 @@ import { InvoicePDF } from './containers/InvoicePDF';
 import Invoice from './containers/Invoice';
 
 function App() {
-
 	return (
 		<BrowserRouter>
 			<Routes>

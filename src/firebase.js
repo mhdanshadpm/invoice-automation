@@ -40,6 +40,8 @@ export const useFirebase = () => {
 
 	const getInvoiceAppInfo = () => getDoc(doc(fireStore, "app", "invoice"))
 
+	const setInvoiceAppInfo = (data) => setDoc(doc(fireStore, "app", "invoice"), data);
+
 	return {
 		app,
 		analytics,
@@ -50,6 +52,7 @@ export const useFirebase = () => {
 		setProject,
 		addProject,
 		getUser,
+		setInvoiceAppInfo,
 		deleteProject,
 		getInvoiceAppInfo,
 	}

@@ -5,19 +5,21 @@ import moment from 'moment';
 import 'moment-weekday-calc';
 import './index.css';
 import { useNavigate } from 'react-router-dom'
-import { Button, Dropdown, Form, Input, Label, Grid, Table, Header, Icon, Segment, Menu } from 'semantic-ui-react'
+import { Button, Dropdown, Form, Input, Label, Grid, Table, Header, Icon, Segment, Menu, Accordion } from 'semantic-ui-react'
 import { TableBody } from './TableBody';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectProjects, storeProjects } from '../../store/projectsSlice';
 import { useFirebase } from '../../firebase';
 import { Header as AppHeader } from '../../components/Header'
 import { getSecondsFromTimeHHMM, getTimeFromSecondsHHMM, getWeeksInRange, getWeeksInRangeV2, zeroPad } from '../../utils/functions';
-import { selectCSVFile, selectJSONFile, selectInvoiceData, setWeekInvoiceData, setSelectedFile, setSelectedJSONFile, selectCardData, setCardData, selectFormData, setFormData } from '../../store/invoiceSlice';
+import { selectCSVFile, selectJSONFile, selectInvoiceData, setWeekInvoiceData, setSelectedFile, setSelectedJSONFile, selectCardData, setCardData, selectFormData, setFormData, setAppData } from '../../store/invoiceSlice';
 import { render } from 'react-dom';
 import axios from 'axios';
 import { Version2Client } from 'jira.js';
 import JiraApi from 'jira-client';
 import { TableHeader } from './TableHeader';
+import routes from '../../constants/routes';
+import { current } from '@reduxjs/toolkit';
 
 
 const client = new Version2Client({
@@ -73,6 +75,8 @@ const Home = () => {
 	const dispatch = useDispatch()
 	const [dateRange, setDateRange] = useState([new Date(), new Date()]);
 	const [sprintDateRange, setSprintDateRange] = useState([new Date(), new Date()]);
+	const [sprints, setSprints] = useState();
+
 	useEffect(() => {
 		// getTestData().then(r => console.log({ r: r.val() }))
 	}, [])
@@ -95,6 +99,7 @@ const Home = () => {
 			if (docSnap.exists()) {
 				setInvoiceNumber(Number(docSnap
 					.data().last_invoice_number) + 1)
+				dispatch(setAppData(docSnap.data()))
 			} else {
 				// doc.data() will be undefined in this case
 			}
@@ -311,15 +316,75 @@ const Home = () => {
 		}, {})
 
 
-		weeks2Sprint
+		const weeks2Sprint = weeks2.reduce((_sprints, week, index) => {
+
+			const start = moment(week.start).day(3).subtract(1, 'weeks').format('YYYY/MM/DD');
+			const end = moment(week.start).day(3).format('YYYY/MM/DD');
+			console.log('Week' + (index + 1) + ': ', moment(end, 'YYYY/MM/DD').weekday(), moment(end, 'YYYY/MM/DD').weekday() > 3)
+			if (moment(week.start).weekday() === 0) {
+				return {
+					..._sprints,
+					['Week' + (index + 1)]: {
+						start: moment(week.start).subtract(1, 'weeks').day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
+						end: moment(week.start).subtract(1, 'weeks').day(3).format('YYYY/MM/DD')
+					}
+				}
+			}
+			if (moment(week.start).weekday() > 3) {
+				return {
+					..._sprints,
+					['Week' + (index + 1)]: {
+						start: moment(week.start).day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
+						end: moment(week.start).day(3).format('YYYY/MM/DD')
+					}
+				}
+			}
+			if (moment(week.end).weekday() < 3 && moment(week.end).weekday() !== 0  ) {
+				return {
+					..._sprints,
+					['Week' + (index + 1)]: {
+						start: moment(week.start).subtract(1, 'weeks').day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
+						end: moment(week.start).subtract(1, 'weeks').day(3).format('YYYY/MM/DD')
+					}
+				}
+			}
+			if (moment(week.start).weekday() < 3 && (moment(week.end).weekday() >= 3 || moment(week.end).weekday() === 0)) {
+				return {
+					..._sprints,
+					['Week' + (index + 1)]: {
+						start: moment(week.start).day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
+						end: moment(week.start).day(3).format('YYYY/MM/DD')
+					}
+				}
+			}
+			// if (moment(end).isSameOrBefore(moment(dateRange[1]).format('YYYY/MM/DD')) ) {
+			// 	return {
+			// 		..._sprints,
+			// 		['Week' + (index + 1)]: {
+			// 			start,
+			// 			end,
+			// 		}
+			// 	}
+			// }
+			return {
+				..._sprints,
+				['Week' + (index + 1)]: {
+					start: null,
+					end: null,
+				}
+			}
+		}, {})
+		console.log('WEEKS SPRINT', weeks2Sprint)
+
+		setSprints(weeks2Sprint)
 
 		dispatch(setWeekInvoiceData(weeksInvoice))
 
 		findAndSaveTotalInvoiceData(weeksInvoice)
-		setSprintDateRange([
-			moment(dateRange[0]).day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
-			moment(dateRange[0]).day(3).format('YYYY/MM/DD'),
-		])
+		// setSprintDateRange([
+		// 	moment(dateRange[0]).day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
+		// 	moment(dateRange[0]).day(3).format('YYYY/MM/DD'),
+		// ])
 	}, [dateRange])
 
 
@@ -349,15 +414,55 @@ const Home = () => {
 	// 	return JSON.parse(text)
 	// }
 
+	const getCardTotal = (cardData) => Object.values(
+		cardData
+	).reduce((_result, value, index) => {
+		console.log({ value, _result })
+		return {
+			..._result,
+			...Object.keys(value).reduce((_cards, key) => {
+				if (Object.keys(_result).includes(key)) {
+					const cardTotal = (value[key].total?.cardTotal || 0) + (_result[key].total?.cardTotal || 0);
+					const totalDays = {
+						asTeamMember: value[key]?.total?.totalDays?.asTeamMember + _result[key]?.total?.totalDays?.asTeamMember,
+						asQAPerson: value[key]?.total?.totalDays?.asQAPerson + _result[key]?.total?.totalDays?.asQAPerson
+					}
+					const average = {
+						asTeamMember: (Number(totalDays.asTeamMember) / Number(cardTotal)).toFixed(1),
+						asQAPerson: (Number(totalDays.asQAPerson) / Number(cardTotal)).toFixed(1)
+						// asTeamMember: ((Number(value[key]?.total?.average?.asTeamMember).toFixed(1) + Number(_result[key]?.total?.average?.asTeamMember).toFixed(1)) / 2).toFixed(1),
+						// asQAPerson: ((Number(value[key]?.total?.average?.asQAPerson).toFixed(1) + Number(_result[key]?.total?.average?.asQAPerson).toFixed(1)) / 2).toFixed(1)
+					}
+					return {
+						..._cards,
+						[key]: {
+							cards: [...(_result[key]?.cards || []), ...(value[key]?.cards || [])],
+							role: value[key].role,
+							total: {
+								cardTotal,
+								totalDays,
+								average
+							}
+						}
+					}
+				} else {
+					return {
+						..._cards,
+						[key]: value[key]
+					}
+				}
+			}, {})
+		}
+	}, {})
 
 	useEffect(() => {
-		if (selectedJSONFile) {
+		if (selectedJSONFile && selectedJSONFile[activeItem]) {
 			console.log( 'SELECTED JSON FILE', {selectedJSONFile})
-			selectedJSONFile[0].text().then(text => {
+			selectedJSONFile[activeItem]?.text()?.then(text => {
 				const jsonData = JSON.parse(text)
 				const jsonDataByAssignee = jsonData
-				console.log('jsonDataByAssignee:', {jsonDataByAssignee})
-				const cardData = Object.keys(jsonDataByAssignee).reduce((_cardData, key) => {
+				// console.log('jsonDataByAssignee:', {jsonDataByAssignee})
+				const cardDataTemp = Object.keys(jsonDataByAssignee).reduce((_cardData, key) => {
 					const assignedIssues = jsonDataByAssignee[key]|| [];
 					const assignedIssuesFiltered = assignedIssues.filter(item => !!item);
 					const cards = assignedIssuesFiltered.map(item => {
@@ -370,19 +475,19 @@ const Home = () => {
 							while (!!!date && index + 1 < status.length) {
 								index = index + 1
 								date = histories.find(item => item.items[0].toString.toUpperCase() === status[index])?.created;
-								console.log('DATE INSIDE('+status[index]+'): ', date )
+								// console.log('DATE INSIDE('+status[index]+'): ', date )
 							}
-							console.log('DATE  :',date)
+							// console.log('DATE  :',date)
 							return date
 						}
 						let todoDate = histories.find(item => (item.items[0].toString.toUpperCase() === 'IN PROGRESS' || item.items[0].field === 'Parent' || item.items[0].field === 'assignee'))?.created;
 
 						const actualToDoDate = todoDate;
 
-						if (moment(todoDate).isBefore(sprintDateRange[0])) {
-							todoDate = sprintDateRange[0]
-						} else if (moment(todoDate).isAfter(sprintDateRange[1])) {
-							todoDate = sprintDateRange[1]
+						if (sprints && sprints[activeItem] && moment(todoDate).isBefore(sprints[activeItem].start)) {
+							todoDate = sprints[activeItem].start
+						} else if (sprints && sprints[activeItem] && moment(todoDate).isAfter(sprints[activeItem].end)) {
+							todoDate = sprints[activeItem].end
 						}
 						// const inQADate = histories.find(item => item.items[0].toString.toUpperCase() === 'IN PEER REVIEW' || item.items[0].toString.toUpperCase() === 'NEEDS QA' || item.items[0].toString.toUpperCase() === 'IN QA' || item.items[0].toString.toUpperCase() === 'DONE')?.created;
 						let inPeerReview = getDate([
@@ -396,10 +501,10 @@ const Home = () => {
 						if (!inPeerReview || moment(moment(inPeerReview).format('YYYY/MM/DD')).isBefore(moment(todoDate).format('YYYY/MM/DD'))) {
 							inPeerReview = todoDate
 						}
-						if (moment(inPeerReview).isBefore(sprintDateRange[0])) {
-							inPeerReview = sprintDateRange[0]
-						} else if (moment(inPeerReview).isAfter(sprintDateRange[1])) {
-							inPeerReview = sprintDateRange[1]
+						if (sprints && sprints[activeItem] && moment(inPeerReview).isBefore(sprints[activeItem].start)) {
+							inPeerReview = sprints[activeItem].start
+						} else if (sprints && sprints[activeItem] && moment(inPeerReview).isAfter(sprints[activeItem].end)) {
+							inPeerReview = sprints[activeItem].end
 						}
 
 						let inQADate = getDate([
@@ -414,10 +519,10 @@ const Home = () => {
 						if (!inQADate || moment(moment(inQADate).format('YYYY/MM/DD')).isBefore(moment(inPeerReview).format('YYYY/MM/DD'))) {
 							inQADate = inPeerReview
 						}
-						if (moment(inQADate).isBefore(sprintDateRange[0])) {
-							inQADate = sprintDateRange[0]
-						} else if (moment(inQADate).isAfter(sprintDateRange[1])) {
-							inQADate = sprintDateRange[1]
+						if (sprints && sprints[activeItem] && moment(inQADate).isBefore(sprints[activeItem].start)) {
+							inQADate = sprints[activeItem].start
+						} else if (sprints && sprints[activeItem] && moment(inQADate).isAfter(sprints[activeItem].end)) {
+							inQADate = sprints[activeItem].end
 						}
 						// const inStagingDate = histories.find(item => item.items[0].toString.toUpperCase() === 'QA PASSED' || item.items[0].toString.toUpperCase() === 'IN STAGING' || item.items[0].toString.toUpperCase() === 'READY FOR STAGING' || item.items[0].toString.toUpperCase() === 'DONE')?.created;
 						let inStagingDate = getDate([
@@ -431,10 +536,10 @@ const Home = () => {
 						if (!inStagingDate) {
 							inStagingDate = inQADate
 						}
-						if (moment(inStagingDate).isBefore(sprintDateRange[0])) {
-							inStagingDate = sprintDateRange[0]
-						} else if (moment(inStagingDate).isAfter(sprintDateRange[1]) ) {
-							inStagingDate = sprintDateRange[1]
+						if (sprints && sprints[activeItem] && moment(inStagingDate).isBefore(sprints[activeItem].start)) {
+							inStagingDate = sprints[activeItem].start
+						} else if (sprints && sprints[activeItem] && moment(inStagingDate).isAfter(sprints[activeItem].end) ) {
+							inStagingDate = sprints[activeItem].end
 						}
 
 
@@ -448,7 +553,7 @@ const Home = () => {
 							rangeEnd: inStagingDate,
 							weekdays: [1, 2, 3, 4, 5], //weekdays Mon to Fri
 						})
-						console.log({ cardName, todoDate, inQADate, inStagingDate, noOfDaysWorkedAsQAPerson, noOfDaysWorkedAsTeamMember })
+						// console.log({ cardName, todoDate, inQADate, inStagingDate, noOfDaysWorkedAsQAPerson, noOfDaysWorkedAsTeamMember })
 						return {cardName, todoDate, inPeerReview, inQADate, inStagingDate, noOfDaysWorkedAsQAPerson, noOfDaysWorkedAsTeamMember, actualInPeerReview, actualInQADate, actualInStagingDate, actualToDoDate}
 					})
 					const cardTotal = cards.length
@@ -476,8 +581,27 @@ const Home = () => {
 						}
 					}
 				}, {})
-				console.log({ jsonData, jsonDataByAssignee, cardData })
-				dispatch(setCardData(cardData))
+
+				const updatedCardData = {
+					...cardData,
+					[activeItem]: cardDataTemp
+				}
+				delete updatedCardData.Total
+
+				const cardsTotal = getCardTotal(updatedCardData)
+
+				console.log('CARD TOTAL : ', cardsTotal)
+				// const Total = Object.keys(cardDataTemp).filter(key => key !== Total).reduce((_total, key, index) => {
+				// 	const cardDataSingleWeek = cardDataTemp[key]
+
+				// }, {})
+				// console.log({ jsonData, jsonDataByAssignee, cardData })
+				dispatch(setCardData(
+					{
+						...updatedCardData,
+						Total: cardsTotal,
+					}
+				))
 			})
 		}
 	}, [selectedJSONFile, sprintDateRange])
@@ -522,14 +646,17 @@ const Home = () => {
 			endBalance,
 			invoiceNumber: zeroPaddedInvoiceNumber,
 			total,
-			project: projectName,
-			cardData,
+			project: {
+				name: projectName,
+				key: project,
+			},
+			cardData: cardData[activeItem],
 		}
 
 		// const navigateToInvoice = () => navigate('/week_invoice', {
 		// 	state
 		// });
-		const navigateToInvoice = () => navigate('/invoice', {
+		const navigateToInvoice = () => navigate(routes.INVOICE, {
 			state
 		});
 
@@ -559,7 +686,7 @@ const Home = () => {
 			invoiceNumber: zeroPaddedInvoiceNumber,
 			total,
 			project: projectName,
-			cardData,
+			cardData: cardData[activeItem],
 		}
 
 		const navigateToInvoice = () => navigate('/download_invoice', {
@@ -593,7 +720,7 @@ const Home = () => {
 						total={total}
 						invoiceData={invoiceData}
 						setHourlyRate={setHourlyRate}
-						cardData={cardData}
+						cardData={cardData[activeItem]}
 					/>
 				</Table>
 			</Segment>
@@ -633,34 +760,57 @@ const Home = () => {
 		)
 	}
 
+	const onDeleteJSONFile = () => {
+		const tempCardData = { ...cardData };
+		delete tempCardData[activeItem];
+		delete tempCardData.Total;
+		const tempSelectedJSONFile = { ...selectedJSONFile };
+		delete tempSelectedJSONFile[activeItem];
+		dispatch(setSelectedJSONFile(tempSelectedJSONFile))
+
+
+		const cardsTotal = getCardTotal(tempCardData)
+		dispatch(setCardData(
+			{
+				...tempCardData,
+				Total: cardsTotal,
+			}
+		))
+	}
+
 	const renderJSONFileInput = () => {
-		if (selectedJSONFile) {
-			return (
-				<div style={{ marginBottom: 20 }}>
-					<Button as='div' labelPosition='left'>
-						<Label as='a' basic pointing='right'>
-							{Object.keys(selectedJSONFile).map((key, index) => <span>{index === 0 ? '' : <span>&nbsp; | &nbsp;</span>} {selectedJSONFile[key].name}</span>) }
-						</Label>
-						<Button onClick={onClickJSONFileInput} icon>
-							Change
+		if (activeItem !== 'Total') {
+			if (selectedJSONFile && selectedJSONFile[activeItem]) {
+				return (
+					<div style={{ marginBottom: 20, width: '100%', display: 'flex', justifyContent: 'space-between' }}>
+						<Button as='div' labelPosition='left'>
+							<Label as='a' basic pointing='right'>
+								{selectedJSONFile[activeItem].name}
+							</Label>
+							<Button positive onClick={onClickJSONFileInput} icon>
+								Change
 						</Button>
+						</Button>
+						<Button negative onClick={onDeleteJSONFile} icon>
+							Remove
 					</Button>
+					</div>
+				)
+			}
+			const buttonText = !selectedJSONFile || !selectedJSONFile[activeItem] ? 'Add a .json file' : 'Change .json file';
+			const content = !selectedJSONFile || selectedJSONFile[activeItem]?.name || 'Upload Jira data';
+			return (
+				<div className='csv-selector'>
+					<Segment placeholder>
+						<Header icon>
+							<Icon name='file code outline' />
+							{content}
+						</Header>
+						<Button onClick={onClickJSONFileInput} primary> {buttonText}</Button>
+					</Segment>
 				</div>
 			)
 		}
-		const buttonText = !selectedJSONFile ? 'Add a .json file' : 'Change .json file';
-		const content = selectedJSONFile?.name || 'Upload Jira data';
-		return (
-			<div className='csv-selector'>
-				<Segment placeholder>
-					<Header icon>
-						<Icon name='file code outline' />
-						{content}
-					</Header>
-					<Button onClick={onClickJSONFileInput} primary> {buttonText}</Button>
-				</Segment>
-			</div>
-		)
 	}
 
 	const renderWeeksTabsMenu = () => isInvoiceModeMonth && (
@@ -689,12 +839,17 @@ const Home = () => {
 
 	const onChangeFile = (e) => {
 		if (e.target.files.length > 0) {
-			dispatch(setSelectedFile(e.target.files[0]))
+			dispatch(setSelectedFile(e.target.files[0]));
+			jsonRef.current.value = "";
 		}
 	}
 	const onChangeJSONFile = (e) => {
 		if (e.target.files.length > 0) {
-			dispatch(setSelectedJSONFile(e.target.files))
+			dispatch(setSelectedJSONFile({
+				...selectedJSONFile,
+				[activeItem]: e.target.files[0]
+			}))
+			jsonRef.current.value = '';
 		}
 	}
 
@@ -703,7 +858,7 @@ const Home = () => {
 	)
 
 	const renderHiddenJSONFileInput = () => (
-		<input hidden onChange={onChangeJSONFile} accept='.json' ref={jsonRef} type='file' multiple={(invoiceMode === 'month')} />
+		<input hidden onChange={onChangeJSONFile} accept='.json' ref={jsonRef} type='file' />
 	)
 
 	const renderSelectWeekDropdown = () => {
@@ -838,154 +993,193 @@ const Home = () => {
 	const onChangeWorkerRole = (role, key) => {
 		const updatedCardData = {
 			...cardData,
-			[key]: {
-				...cardData[key],
-				role,
+			[activeItem]: {
+				...cardData[activeItem],
+				[key]: {
+					...cardData[activeItem][key],
+					role,
+				}
 			}
 		}
 		console.log({updatedCardData})
 		dispatch(setCardData(updatedCardData))
 	}
 
-	const renderCardTables = () => {
-		return Object.keys(cardData).map((key) => (
-			<Table celled >
-				<Table.Header>
-					<Table.Row >
-						<Table.HeaderCell colSpan='7'>
-							<div style={{display: 'flex',flexDirection: 'row', alignItems: 'center'}}>
-								<span>{key} :</span>
-								<Dropdown
-									onChange={(e, data) => onChangeWorkerRole(data.value, key)}
-									style={{ width: 200, border: 0, backgroundColor: '#f9fafb'}}
-									placeholder='Select Role'
-									fluid
-									value={cardData[key].role}
-									selection
-									options={[
-										{
-											key: 'Team Member',
-											text: 'Team Member',
-											value: 'Team Member',
-										},
-										{
-											key: 'QA Person',
-											text: 'QA Person',
-											value: 'QA Person',
-										},
-									]}
-								/>
-							</div>
-						</Table.HeaderCell>
-					</Table.Row>
-					<Table.Row>
-						<Table.HeaderCell textAlign='center' width='2'>
-							Card No
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-							Card Title
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-							In Progress
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-							In Peer Review
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-							In QA
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-							In Staging
-						</Table.HeaderCell>
-						<Table.HeaderCell textAlign='center' width='3'>
-							No of Days
-						</Table.HeaderCell>
-					</Table.Row>
-				</Table.Header>
-				<Table.Body>
-					{
-						cardData[key].cards?.map((card, index) => (
-							<Table.Row>
-								<Table.Cell textAlign='center'>
-									{index+1}
-								</Table.Cell>
-								<Table.Cell>
-									{card.cardName}
-								</Table.Cell>
-								<Table.Cell>
-									{
-										moment(card.todoDate).format('DD/MM/YYYY')
-										//moment(card.todoDate).format('DD/MM/YYYY') + '\n' + moment(card.actualToDoDate).format('DD/MM/YYYY')
-									}
-								</Table.Cell>
-								<Table.Cell>
-									{
-										//moment(card.inPeerReview).format('DD/MM/YYYY') + '\n' + moment(card.actualInPeerReview).format('DD/MM/YYYY')
-										moment(card.inPeerReview).format('DD/MM/YYYY')
-									}
-								</Table.Cell>
-								<Table.Cell>
-									{
-										moment(card.inQADate).format('DD/MM/YYYY')
-										//moment(card.inQADate).format('DD/MM/YYYY') + '\n' + moment(card.actualInQADate).format('DD/MM/YYYY')
-									}
-								</Table.Cell>
-								<Table.Cell>
-									{
-										moment(card.inStagingDate).format('DD/MM/YYYY')
-										// moment(card.inStagingDate).format('DD/MM/YYYY') + '\n' + moment(card.actualInStagingDate).format('DD/MM/YYYY')
-									}
-								</Table.Cell>
-								<Table.Cell textAlign='center'>
-									{cardData[key].role === 'Team Member' ? card.noOfDaysWorkedAsTeamMember : card.noOfDaysWorkedAsQAPerson}
-								</Table.Cell>
-							</Table.Row>
-						))
-					}
-				</Table.Body>
-				<Table.Footer>
-					<Table.Row>
-						<Table.HeaderCell>
-							<b></b>
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-							<b>Total No of Cards: {cardData[key]?.total?.cardTotal}</b>
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-							<b>Total No of Days: {cardData[key].role === 'Team Member' ? cardData[key]?.total?.totalDays?.asTeamMember : cardData[key]?.total?.totalDays?.asQAPerson}</b>
-						</Table.HeaderCell>
-
-					</Table.Row>
-					<Table.Row>
-						<Table.HeaderCell>
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-							<b></b>
-						</Table.HeaderCell>
-						<Table.HeaderCell>
-							<b>Average: {cardData[key].role === 'Team Member' ? cardData[key]?.total?.average?.asTeamMember : cardData[key]?.total?.average?.asQAPerson}</b>
-						</Table.HeaderCell>
-					</Table.Row>
-				</Table.Footer>
-			</Table>
-		))
+	const [activeIndex, setActiveIndex] = useState()
+	const onChangeActiveIndex = (e, data) => {
+		const newIndex = (activeIndex === data.index) ? -1 : data.index
+		setActiveIndex(newIndex)
 	}
+	const renderCardTables = () => cardData && cardData[activeItem] && Object.keys(cardData[activeItem]).map((key, index) => (
+		<Accordion fluid styled>
+			<Accordion.Title
+          active={activeIndex === index}
+          index={index}
+          onClick={onChangeActiveIndex}
+        >
+				<div style={{display: 'flex', justifyContent: 'space-between'}}>
+					<div>
+						<Icon name='dropdown' />
+						{key}
+					</div>
+					<div>
+						<b>Total No of Cards: {cardData[activeItem][key]?.total?.cardTotal}</b>
+						,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+						<b>Average: {cardData[activeItem][key].role === 'Team Member' ? cardData[activeItem][key]?.total?.average?.asTeamMember : cardData[activeItem][key]?.total?.average?.asQAPerson}</b>
+					</div>
+				</div>
+        </Accordion.Title>
+        <Accordion.Content active={activeIndex === index}>
+		<Table celled >
+			<Table.Header>
+				<Table.Row >
+					<Table.HeaderCell colSpan='7'>
+						<div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
+							<span>{key} :</span>
+							<Dropdown
+								onChange={(e, data) => onChangeWorkerRole(data.value, key)}
+								style={{ width: 200, border: 0, backgroundColor: '#f9fafb' }}
+								placeholder='Select Role'
+								fluid
+								value={cardData[activeItem][key].role}
+								selection
+								options={[
+									{
+										key: 'Team Member',
+										text: 'Team Member',
+										value: 'Team Member',
+									},
+									{
+										key: 'QA Person',
+										text: 'QA Person',
+										value: 'QA Person',
+									},
+								]}
+							/>
+						</div>
+					</Table.HeaderCell>
+				</Table.Row>
+				<Table.Row>
+					<Table.HeaderCell textAlign='center' width='2'>
+						Card No
+						</Table.HeaderCell>
+					<Table.HeaderCell>
+						Card Title
+						</Table.HeaderCell>
+					<Table.HeaderCell>
+						In Progress
+						</Table.HeaderCell>
+					<Table.HeaderCell>
+						In Peer Review
+						</Table.HeaderCell>
+					<Table.HeaderCell>
+						In QA
+						</Table.HeaderCell>
+					<Table.HeaderCell>
+						In Staging
+						</Table.HeaderCell>
+					<Table.HeaderCell textAlign='center' width='3'>
+						No of Days
+						</Table.HeaderCell>
+				</Table.Row>
+			</Table.Header>
+			<Table.Body>
+				{
+					cardData[activeItem][key].cards?.map((card, index) => (
+						<Table.Row>
+							<Table.Cell textAlign='center'>
+								{index + 1}
+							</Table.Cell>
+							<Table.Cell>
+								{card.cardName}
+							</Table.Cell>
+							<Table.Cell>
+								{
+									moment(card.todoDate).format('DD/MM/YYYY')
+									//moment(card.todoDate).format('DD/MM/YYYY') + '\n' + moment(card.actualToDoDate).format('DD/MM/YYYY')
+								}
+							</Table.Cell>
+							<Table.Cell>
+								{
+									//moment(card.inPeerReview).format('DD/MM/YYYY') + '\n' + moment(card.actualInPeerReview).format('DD/MM/YYYY')
+									moment(card.inPeerReview).format('DD/MM/YYYY')
+								}
+							</Table.Cell>
+							<Table.Cell>
+								{
+									moment(card.inQADate).format('DD/MM/YYYY')
+									//moment(card.inQADate).format('DD/MM/YYYY') + '\n' + moment(card.actualInQADate).format('DD/MM/YYYY')
+								}
+							</Table.Cell>
+							<Table.Cell>
+								{
+									moment(card.inStagingDate).format('DD/MM/YYYY')
+									// moment(card.inStagingDate).format('DD/MM/YYYY') + '\n' + moment(card.actualInStagingDate).format('DD/MM/YYYY')
+								}
+							</Table.Cell>
+							<Table.Cell textAlign='center'>
+								{cardData[activeItem][key].role === 'Team Member' ? card.noOfDaysWorkedAsTeamMember : card.noOfDaysWorkedAsQAPerson}
+							</Table.Cell>
+						</Table.Row>
+					))
+				}
+			</Table.Body>
+			<Table.Footer>
+				<Table.Row>
+					<Table.HeaderCell>
+						<b></b>
+					</Table.HeaderCell>
+					<Table.HeaderCell>
+						<b>Total No of Cards: {cardData[activeItem][key]?.total?.cardTotal}</b>
+					</Table.HeaderCell>
+					<Table.HeaderCell>
+					</Table.HeaderCell>
+					<Table.HeaderCell>
+					</Table.HeaderCell>
+					<Table.HeaderCell>
+					</Table.HeaderCell>
+					<Table.HeaderCell>
+					</Table.HeaderCell>
+					<Table.HeaderCell>
+						<b>Total No of Days: {cardData[activeItem][key].role === 'Team Member' ? cardData[activeItem][key]?.total?.totalDays?.asTeamMember : cardData[activeItem][key]?.total?.totalDays?.asQAPerson}</b>
+					</Table.HeaderCell>
+
+				</Table.Row>
+				<Table.Row>
+					<Table.HeaderCell>
+					</Table.HeaderCell>
+					<Table.HeaderCell>
+					</Table.HeaderCell>
+					<Table.HeaderCell>
+					</Table.HeaderCell>
+					<Table.HeaderCell>
+					</Table.HeaderCell>
+					<Table.HeaderCell>
+					</Table.HeaderCell>
+					<Table.HeaderCell>
+						<b></b>
+					</Table.HeaderCell>
+					<Table.HeaderCell>
+						<b>Average: {cardData[activeItem][key].role === 'Team Member' ? cardData[activeItem][key]?.total?.average?.asTeamMember : cardData[activeItem][key]?.total?.average?.asQAPerson}</b>
+					</Table.HeaderCell>
+				</Table.Row>
+			</Table.Footer>
+				</Table>
+			</Accordion.Content>
+		</Accordion>
+	))
+
+
+	const renderCardSection = () => (
+		<Segment>
+			{sprints && (<Header as='h5'>
+				Sprint: {`${sprints[activeItem]?.start || '--'} : ${sprints[activeItem]?.end || '--'}`}
+			</Header>)}
+			{renderJSONFileInput()}
+			{renderCardTables()}
+		</Segment>
+	)
+
 
 	return (
 		<>
@@ -1002,8 +1196,9 @@ const Home = () => {
 						{renderInvoiceTabsAndTable()}
 						<br />
 						<br />
-						{renderJSONFileInput()}
-						{renderCardTables()}
+						{/* {renderJSONFileInput()} */}
+						{renderCardSection()}
+						{/* {renderCardTables()} */}
 						<br />
 						<br />
 						{renderGenerateInvoiceButton()}

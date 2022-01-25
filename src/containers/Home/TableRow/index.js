@@ -1,30 +1,42 @@
 import { createRef, useEffect, useState } from "react"
 import { Table, Dropdown, Input, Label } from 'semantic-ui-react'
+import { getNumbersInRangeAsArray } from '../../../utils/functions'
 
 const TableRow = ({ data, no, name, setHourlyRate, onChangeHoursWorked, activeItem, cardData }) => {
 
 	const [hoursWorked, setHoursWorked] = useState(data.hoursWorked)
+	const [isHoursWorkedValid, setIsHoursWorkedValid] = useState(true)
 	const inputRef = createRef()
 
 	useEffect(() => {
 		setHoursWorked(data.hoursWorked)
 	}, [data])
 
-	return <Table.Row>
-		<Table.Cell>{no}</Table.Cell>
-		<Table.Cell>{data.worker}</Table.Cell>
+	return <Table.Row style={{ textAlign: 'center' }}>
+		<Table.Cell >{no}</Table.Cell>
+		<Table.Cell style={{ textAlign: 'left' }}>{data.worker}</Table.Cell>
 		{activeItem !== 'Total' && (<Table.Cell>
-				<Input type='text' {...(data.hoursWorked !== hoursWorked) && { labelPosition: 'left' }} placeholder='Amount'>
-					<input ref={inputRef} style={{ textAlign: 'center', width: 100 }} value={hoursWorked} onChange={(e) => {
+			<Input type='text' error={!isHoursWorkedValid} {...(data.hoursWorked !== hoursWorked) && { labelPosition: 'left' }} placeholder='Amount'>
+				<input ref={inputRef} style={{ width: 100 }} value={hoursWorked} onChange={(e) => {
+						if (data.hoursWorked === e.target.value) {
+							setIsHoursWorkedValid(true)
+						}
 						setHoursWorked(e.target.value)
 					}} />
-					{(data.hoursWorked !== hoursWorked) && <Label onClick={() => {
+				{(data.hoursWorked !== hoursWorked) && <Label onClick={() => {
+					const pattern = /^\d+:[0-5][0-9]$/
+					const isValid = pattern.test(hoursWorked)
+					if (isValid) {
 						onChangeHoursWorked(name, hoursWorked)
-					}} basic>Save</Label>}
+						setIsHoursWorkedValid(true)
+					} else {
+						setIsHoursWorkedValid(false)
+					}
+					}} basic style={{cursor: 'pointer'}}>Save</Label>}
 				</Input>
 			</Table.Cell>
 		)}
-		<Table.Cell textAlign='center'>{data.hoursBilled}</Table.Cell>
+		<Table.Cell>{data.hoursBilled}</Table.Cell>
 		{/* <td>{hours}</td> */}
 		<Table.Cell>
 			<Dropdown
@@ -32,36 +44,14 @@ const TableRow = ({ data, no, name, setHourlyRate, onChangeHoursWorked, activeIt
 				onChange={(e, data) => {
 					setHourlyRate(name, Number(data.value))
 				}}
-				value={data.hourlyRate}
+				value={data.hourlyRate.toFixed(2)}
 				fluid
 				selection
-				options={[
-					{ key: 1, text: '$1', value: 1 },
-					{ key: 2, text: '$2', value: 2 },
-					{ key: 3, text: '$3', value: 3 },
-					{ key: 4, text: '$4', value: 4 },
-					{ key: 5, text: '$5', value: 5 },
-					{ key: 6, text: '$6', value: 6 },
-					{ key: 7, text: '$7', value: 7 },
-					{ key: 8, text: '$8', value: 8 },
-					{ key: 9, text: '$9', value: 9 },
-					{ key: 10, text: '$10', value: 10 },
-					{ key: 11, text: '$11', value: 11 },
-					{ key: 12, text: '$12', value: 12 },
-					{ key: 13, text: '$13', value: 13 },
-					{ key: 14, text: '$14', value: 14 },
-					{ key: 15, text: '$15', value: 15 },
-					{ key: 16, text: '$16', value: 16 },
-					{ key: 17, text: '$17', value: 17 },
-					{ key: 18, text: '$18', value: 18 },
-					{ key: 19, text: '$19', value: 19 },
-					{ key: 20, text: '$20', value: 20 },
-					{ key: 21, text: '$21', value: 21 },
-					{ key: 22, text: '$22', value: 22 },
-					{ key: 23, text: '$23', value: 23 },
-					{ key: 24, text: '$24', value: 24 },
-					{ key: 25, text: '$25', value: 25 },
-				]}
+				options={getNumbersInRangeAsArray(1, 25, 0.01).map((number) => ({
+					key: number.toFixed(2),
+					value: number.toFixed(2),
+					text: '$'+number.toFixed(2)
+				}))}
 			/>
 			{/* <Input type='text' {...(data.hourlyRate !== hourlyRate) && { labelPosition: 'left' }} placeholder='Amount'>
 				<input style={{ textAlign: 'center' }} value={hoursWorked} onChange={(e) => {
@@ -72,7 +62,7 @@ const TableRow = ({ data, no, name, setHourlyRate, onChangeHoursWorked, activeIt
 				}} basic>Save</Label>}
 			</Input> */}
 		</Table.Cell>
-		<Table.Cell textAlign='center'>${data.totalInUSD.toFixed(2)}</Table.Cell>
+		<Table.Cell>${data.totalInUSD.toFixed(2)}</Table.Cell>
 		<Table.Cell textAlign='center'>{cardData?.total?.cardTotal || '--'}</Table.Cell>
 		<Table.Cell textAlign='center'>{(cardData?.role === 'Team Member' ? cardData?.total?.average?.asTeamMember : cardData?.total?.average?.asQAPerson) || '--'}</Table.Cell>
 		</Table.Row>

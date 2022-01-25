@@ -234,7 +234,6 @@ function InvoiceTable({ columns, data, state }) {
           <tr {...headerGroup.getHeaderGroupProps()}>
             <th>#</th>
             {headerGroup.headers.map((column) => {
-              console.log({ column })
               return (
                 <th
                   style={getStyle(column.id)}
@@ -387,7 +386,6 @@ function BalanceTable({ columns, data }) {
 }
 
 function Invoice() {
-  console.log({document: document.body})
   const { state } = useLocation()
 
   const { getProjectsList, setProject, setInvoiceAppInfo } = useFirebase()

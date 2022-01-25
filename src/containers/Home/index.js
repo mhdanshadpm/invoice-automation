@@ -320,7 +320,6 @@ const Home = () => {
 
 			const start = moment(week.start).day(3).subtract(1, 'weeks').format('YYYY/MM/DD');
 			const end = moment(week.start).day(3).format('YYYY/MM/DD');
-			console.log('Week' + (index + 1) + ': ', moment(end, 'YYYY/MM/DD').weekday(), moment(end, 'YYYY/MM/DD').weekday() > 3)
 			if (moment(week.start).weekday() === 0) {
 				return {
 					..._sprints,
@@ -374,7 +373,7 @@ const Home = () => {
 				}
 			}
 		}, {})
-		console.log('WEEKS SPRINT', weeks2Sprint)
+
 
 		setSprints(weeks2Sprint)
 
@@ -417,7 +416,6 @@ const Home = () => {
 	const getCardTotal = (cardData) => Object.values(
 		cardData
 	).reduce((_result, value, index) => {
-		console.log({ value, _result })
 		return {
 			..._result,
 			...Object.keys(value).reduce((_cards, key) => {
@@ -457,11 +455,9 @@ const Home = () => {
 
 	useEffect(() => {
 		if (selectedJSONFile && selectedJSONFile[activeItem]) {
-			console.log( 'SELECTED JSON FILE', {selectedJSONFile})
 			selectedJSONFile[activeItem]?.text()?.then(text => {
 				const jsonData = JSON.parse(text)
 				const jsonDataByAssignee = jsonData
-				// console.log('jsonDataByAssignee:', {jsonDataByAssignee})
 				const cardDataTemp = Object.keys(jsonDataByAssignee).reduce((_cardData, key) => {
 					const assignedIssues = jsonDataByAssignee[key]|| [];
 					const assignedIssuesFiltered = assignedIssues.filter(item => !!item);
@@ -475,9 +471,7 @@ const Home = () => {
 							while (!!!date && index + 1 < status.length) {
 								index = index + 1
 								date = histories.find(item => item.items[0].toString.toUpperCase() === status[index])?.created;
-								// console.log('DATE INSIDE('+status[index]+'): ', date )
 							}
-							// console.log('DATE  :',date)
 							return date
 						}
 						let todoDate = histories.find(item => (item.items[0].toString.toUpperCase() === 'IN PROGRESS' || item.items[0].field === 'Parent' || item.items[0].field === 'assignee'))?.created;
@@ -553,7 +547,6 @@ const Home = () => {
 							rangeEnd: inStagingDate,
 							weekdays: [1, 2, 3, 4, 5], //weekdays Mon to Fri
 						})
-						// console.log({ cardName, todoDate, inQADate, inStagingDate, noOfDaysWorkedAsQAPerson, noOfDaysWorkedAsTeamMember })
 						return {cardName, todoDate, inPeerReview, inQADate, inStagingDate, noOfDaysWorkedAsQAPerson, noOfDaysWorkedAsTeamMember, actualInPeerReview, actualInQADate, actualInStagingDate, actualToDoDate}
 					})
 					const cardTotal = cards.length
@@ -590,12 +583,10 @@ const Home = () => {
 
 				const cardsTotal = getCardTotal(updatedCardData)
 
-				console.log('CARD TOTAL : ', cardsTotal)
 				// const Total = Object.keys(cardDataTemp).filter(key => key !== Total).reduce((_total, key, index) => {
 				// 	const cardDataSingleWeek = cardDataTemp[key]
 
 				// }, {})
-				// console.log({ jsonData, jsonDataByAssignee, cardData })
 				dispatch(setCardData(
 					{
 						...updatedCardData,
@@ -1001,7 +992,6 @@ const Home = () => {
 				}
 			}
 		}
-		console.log({updatedCardData})
 		dispatch(setCardData(updatedCardData))
 	}
 

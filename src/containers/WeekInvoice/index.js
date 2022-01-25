@@ -19,35 +19,6 @@ const WeekInvoice = () => {
   const doc = new jsPDF()
   const totalPayable = (Number(state.nextMonthEstimate) - Number(state.endBalance)).toFixed(2)
 
-	console.log({ state })
-	// const getDocx = async (string) => {
-	// 	return await HTMLToDOCX(string)
-	// }
-  useEffect(() => {
-		console.log(divRef.current.innerHTML)
-		// doc.html(divRef.current, {
-		// 	callback: function (doc) {
-		// 		doc.save();
-		// 	},
-		// 	autoPaging: 'text',
-		// 	x: 10,
-		// 	y: 10
-		// });
-    // getDocx(divRef.current.innerHTML, null, {
-    //   margins: {
-    //     top: 2,
-    //     bottom: 10,
-    //     left: 0,
-    //     right: 5,
-    //   }
-    // }).then((r) => {
-    //   const myFile = new File([r], "invoice.docx", {
-    //     type: r.type
-    //   })
-    //   console.log({ r, myFile })
-    //   window.open(URL.createObjectURL(myFile), '_blank')
-    // })
-	}, [])
 
 	const getBestMatch = (key, array) => {
 		var matches = stringSimilarity.findBestMatch(key, array);

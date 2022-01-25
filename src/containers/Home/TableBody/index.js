@@ -6,7 +6,6 @@ const TableBody = ({ invoiceData, setHourlyRate, total, onChangeHoursWorked, act
 
 	const getBestMatch = (key) => {
 		var matches = stringSimilarity.findBestMatch(key, Object.keys(cardData) || Object.key(invoiceData));
-		console.log({ string: key, strings: Object.keys(cardData), matches })
 		return matches?.bestMatch?.rating > 0.6 ? matches?.bestMatch?.target : key
 	}
 

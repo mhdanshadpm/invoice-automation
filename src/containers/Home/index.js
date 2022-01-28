@@ -5,7 +5,7 @@ import moment from 'moment';
 import 'moment-weekday-calc';
 import './index.css';
 import { useNavigate } from 'react-router-dom'
-import { Button, Dropdown, Form, Input, Label, Grid, Table, Header, Icon, Segment, Menu, Accordion } from 'semantic-ui-react'
+import { Button, Dropdown, Form, Input, Label, Grid, Table, Header, Icon, Segment, Menu, Accordion, Confirm, Checkbox, Message } from 'semantic-ui-react'
 import { TableBody } from './TableBody';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectProjects, storeProjects } from '../../store/projectsSlice';
@@ -20,6 +20,7 @@ import JiraApi from 'jira-client';
 import { TableHeader } from './TableHeader';
 import routes from '../../constants/routes';
 import { current } from '@reduxjs/toolkit';
+import { selectShouldEnableCardCalculation, toggleShouldEnableCardCalculation } from '../../store/UISlice';
 
 
 const client = new Version2Client({
@@ -50,6 +51,10 @@ const Home = () => {
 	const selectedFile = useSelector(selectCSVFile)
 	const selectedJSONFile = useSelector(selectJSONFile)
 	const formData = useSelector(selectFormData)
+  const shouldEnableCardCalculation = useSelector(selectShouldEnableCardCalculation)
+	console.log({
+		weekInvoiceData
+	})
 
 	const documentRef = createRef();
 	const jsonRef = createRef();
@@ -65,6 +70,10 @@ const Home = () => {
 	const [maxDate, setMaxDate] = useState();
 	const [invoiceMode, setInvoiceMode] = useState('week')
 	const [invoiceNumber, setInvoiceNumber] = useState(0)
+	const [deleteData, setDeleteData] = useState({
+		show: false,
+		key: null,
+	})
 
 	// const {
 	// 	to,
@@ -105,6 +114,58 @@ const Home = () => {
 			}
 		})
 	}, [])
+
+	const hideDeleteConfirm = () => setDeleteData(state => ({
+		...state,
+		show: false,
+	}))
+	const deleteWorkerDataConfirm = (name) => {
+		setDeleteData({
+			show: true,
+			key: name,
+		})
+	}
+
+	const addWorkerData = (key, data) => {
+
+		const updatedInvoiceData = {
+			...weekInvoiceData[activeItem].data,
+			[key]: {
+				...weekInvoiceData[activeItem].data[key],
+				...data
+			}
+		}
+		const total = getTotal(updatedInvoiceData);
+		const updatedWeekInvoiceData = {
+			...weekInvoiceData,
+			[activeItem]: {
+				...weekInvoiceData[activeItem],
+				data: updatedInvoiceData,
+				total,
+			}
+		}
+		findAndSaveTotalInvoiceData(updatedWeekInvoiceData)
+		alert('Added worker data successfully')
+	}
+	const deleteWorkerData = () => {
+		const updatedInvoiceData = Object.keys(weekInvoiceData[activeItem].data).filter(item => item !== deleteData.key).reduce((_updatedInvoiceData, key) => ({
+			..._updatedInvoiceData,
+			[key]: weekInvoiceData[activeItem].data[key]
+		}), {})
+		const total = getTotal(updatedInvoiceData);
+		const updatedWeekInvoiceData = {
+			...weekInvoiceData,
+			[activeItem]: {
+				...weekInvoiceData[activeItem],
+				data: updatedInvoiceData,
+				total,
+			}
+		}
+		findAndSaveTotalInvoiceData(updatedWeekInvoiceData)
+		setDeleteData({ show: false })
+		alert('deleted successfully!')
+	}
+
 	const onChangeHoursWorked = (key, time) => {
 		const splittedTime = time.split(':');
 		const billedMinutes = moment.utc((parseInt(splittedTime[1] / 10) * 10) * 60000).format('mm');
@@ -338,7 +399,7 @@ const Home = () => {
 					}
 				}
 			}
-			if (moment(week.end).weekday() < 3 && moment(week.end).weekday() !== 0  ) {
+			if (moment(week.end).weekday() < 3 && moment(week.end).weekday() !== 0) {
 				return {
 					..._sprints,
 					['Week' + (index + 1)]: {
@@ -459,7 +520,7 @@ const Home = () => {
 				const jsonData = JSON.parse(text)
 				const jsonDataByAssignee = jsonData
 				const cardDataTemp = Object.keys(jsonDataByAssignee).reduce((_cardData, key) => {
-					const assignedIssues = jsonDataByAssignee[key]|| [];
+					const assignedIssues = jsonDataByAssignee[key] || [];
 					const assignedIssuesFiltered = assignedIssues.filter(item => !!item);
 					const cards = assignedIssuesFiltered.map(item => {
 						const cardName = item.key;
@@ -532,7 +593,7 @@ const Home = () => {
 						}
 						if (sprints && sprints[activeItem] && moment(inStagingDate).isBefore(sprints[activeItem].start)) {
 							inStagingDate = sprints[activeItem].start
-						} else if (sprints && sprints[activeItem] && moment(inStagingDate).isAfter(sprints[activeItem].end) ) {
+						} else if (sprints && sprints[activeItem] && moment(inStagingDate).isAfter(sprints[activeItem].end)) {
 							inStagingDate = sprints[activeItem].end
 						}
 
@@ -542,12 +603,12 @@ const Home = () => {
 							rangeEnd: inPeerReview,
 							weekdays: [1, 2, 3, 4, 5], //weekdays Mon to Fri
 						})
-						const noOfDaysWorkedAsQAPerson =  moment()?.isoWeekdayCalc({
+						const noOfDaysWorkedAsQAPerson = moment()?.isoWeekdayCalc({
 							rangeStart: inQADate,
 							rangeEnd: inStagingDate,
 							weekdays: [1, 2, 3, 4, 5], //weekdays Mon to Fri
 						})
-						return {cardName, todoDate, inPeerReview, inQADate, inStagingDate, noOfDaysWorkedAsQAPerson, noOfDaysWorkedAsTeamMember, actualInPeerReview, actualInQADate, actualInStagingDate, actualToDoDate}
+						return { cardName, todoDate, inPeerReview, inQADate, inStagingDate, noOfDaysWorkedAsQAPerson, noOfDaysWorkedAsTeamMember, actualInPeerReview, actualInQADate, actualInStagingDate, actualToDoDate }
 					})
 					const cardTotal = cards.length
 
@@ -709,6 +770,8 @@ const Home = () => {
 						onChangeHoursWorked={onChangeHoursWorked}
 						data={data}
 						total={total}
+						addWorkerData={addWorkerData}
+						deleteWorkerData={deleteWorkerDataConfirm}
 						invoiceData={invoiceData}
 						setHourlyRate={setHourlyRate}
 						cardData={cardData[activeItem]}
@@ -1000,14 +1063,14 @@ const Home = () => {
 		const newIndex = (activeIndex === data.index) ? -1 : data.index
 		setActiveIndex(newIndex)
 	}
-	const renderCardTables = () => cardData && cardData[activeItem] && Object.keys(cardData[activeItem]).map((key, index) => (
+	const renderCardTables = () => cardData && cardData[activeItem] ? Object.keys(cardData[activeItem]).map((key, index) => (
 		<Accordion fluid styled>
 			<Accordion.Title
-          active={activeIndex === index}
-          index={index}
-          onClick={onChangeActiveIndex}
-        >
-				<div style={{display: 'flex', justifyContent: 'space-between'}}>
+				active={activeIndex === index}
+				index={index}
+				onClick={onChangeActiveIndex}
+			>
+				<div style={{ display: 'flex', justifyContent: 'space-between' }}>
 					<div>
 						<Icon name='dropdown' />
 						{key}
@@ -1018,151 +1081,157 @@ const Home = () => {
 						<b>Average: {cardData[activeItem][key].role === 'Team Member' ? cardData[activeItem][key]?.total?.average?.asTeamMember : cardData[activeItem][key]?.total?.average?.asQAPerson}</b>
 					</div>
 				</div>
-        </Accordion.Title>
-        <Accordion.Content active={activeIndex === index}>
-		<Table celled >
-			<Table.Header>
-				<Table.Row >
-					<Table.HeaderCell colSpan='7'>
-						<div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
-							<span>{key} :</span>
-							<Dropdown
-								onChange={(e, data) => onChangeWorkerRole(data.value, key)}
-								style={{ width: 200, border: 0, backgroundColor: '#f9fafb' }}
-								placeholder='Select Role'
-								fluid
-								value={cardData[activeItem][key].role}
-								selection
-								options={[
-									{
-										key: 'Team Member',
-										text: 'Team Member',
-										value: 'Team Member',
-									},
-									{
-										key: 'QA Person',
-										text: 'QA Person',
-										value: 'QA Person',
-									},
-								]}
-							/>
-						</div>
-					</Table.HeaderCell>
-				</Table.Row>
-				<Table.Row>
-					<Table.HeaderCell textAlign='center' width='2'>
-						Card No
-						</Table.HeaderCell>
-					<Table.HeaderCell>
-						Card Title
-						</Table.HeaderCell>
-					<Table.HeaderCell>
-						In Progress
-						</Table.HeaderCell>
-					<Table.HeaderCell>
-						In Peer Review
-						</Table.HeaderCell>
-					<Table.HeaderCell>
-						In QA
-						</Table.HeaderCell>
-					<Table.HeaderCell>
-						In Staging
-						</Table.HeaderCell>
-					<Table.HeaderCell textAlign='center' width='3'>
-						No of Days
-						</Table.HeaderCell>
-				</Table.Row>
-			</Table.Header>
-			<Table.Body>
-				{
-					cardData[activeItem][key].cards?.map((card, index) => (
-						<Table.Row>
-							<Table.Cell textAlign='center'>
-								{index + 1}
-							</Table.Cell>
-							<Table.Cell>
-								{card.cardName}
-							</Table.Cell>
-							<Table.Cell>
-								{
-									moment(card.todoDate).format('DD/MM/YYYY')
-									//moment(card.todoDate).format('DD/MM/YYYY') + '\n' + moment(card.actualToDoDate).format('DD/MM/YYYY')
-								}
-							</Table.Cell>
-							<Table.Cell>
-								{
-									//moment(card.inPeerReview).format('DD/MM/YYYY') + '\n' + moment(card.actualInPeerReview).format('DD/MM/YYYY')
-									moment(card.inPeerReview).format('DD/MM/YYYY')
-								}
-							</Table.Cell>
-							<Table.Cell>
-								{
-									moment(card.inQADate).format('DD/MM/YYYY')
-									//moment(card.inQADate).format('DD/MM/YYYY') + '\n' + moment(card.actualInQADate).format('DD/MM/YYYY')
-								}
-							</Table.Cell>
-							<Table.Cell>
-								{
-									moment(card.inStagingDate).format('DD/MM/YYYY')
-									// moment(card.inStagingDate).format('DD/MM/YYYY') + '\n' + moment(card.actualInStagingDate).format('DD/MM/YYYY')
-								}
-							</Table.Cell>
-							<Table.Cell textAlign='center'>
-								{cardData[activeItem][key].role === 'Team Member' ? card.noOfDaysWorkedAsTeamMember : card.noOfDaysWorkedAsQAPerson}
-							</Table.Cell>
+			</Accordion.Title>
+			<Accordion.Content active={activeIndex === index}>
+				<Table celled >
+					<Table.Header>
+						<Table.Row >
+							<Table.HeaderCell colSpan='7'>
+								<div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
+									<span>{key} :</span>
+									<Dropdown
+										onChange={(e, data) => onChangeWorkerRole(data.value, key)}
+										style={{ width: 200, border: 0, backgroundColor: '#f9fafb' }}
+										placeholder='Select Role'
+										fluid
+										value={cardData[activeItem][key].role}
+										selection
+										options={[
+											{
+												key: 'Team Member',
+												text: 'Team Member',
+												value: 'Team Member',
+											},
+											{
+												key: 'QA Person',
+												text: 'QA Person',
+												value: 'QA Person',
+											},
+										]}
+									/>
+								</div>
+							</Table.HeaderCell>
 						</Table.Row>
-					))
-				}
-			</Table.Body>
-			<Table.Footer>
-				<Table.Row>
-					<Table.HeaderCell>
-						<b></b>
-					</Table.HeaderCell>
-					<Table.HeaderCell>
-						<b>Total No of Cards: {cardData[activeItem][key]?.total?.cardTotal}</b>
-					</Table.HeaderCell>
-					<Table.HeaderCell>
-					</Table.HeaderCell>
-					<Table.HeaderCell>
-					</Table.HeaderCell>
-					<Table.HeaderCell>
-					</Table.HeaderCell>
-					<Table.HeaderCell>
-					</Table.HeaderCell>
-					<Table.HeaderCell>
-						<b>Total No of Days: {cardData[activeItem][key].role === 'Team Member' ? cardData[activeItem][key]?.total?.totalDays?.asTeamMember : cardData[activeItem][key]?.total?.totalDays?.asQAPerson}</b>
-					</Table.HeaderCell>
+						<Table.Row>
+							<Table.HeaderCell textAlign='center' width='2'>
+								Card No
+						</Table.HeaderCell>
+							<Table.HeaderCell>
+								Card Title
+						</Table.HeaderCell>
+							<Table.HeaderCell>
+								In Progress
+						</Table.HeaderCell>
+							<Table.HeaderCell>
+								In Peer Review
+						</Table.HeaderCell>
+							<Table.HeaderCell>
+								In QA
+						</Table.HeaderCell>
+							<Table.HeaderCell>
+								In Staging
+						</Table.HeaderCell>
+							<Table.HeaderCell textAlign='center' width='3'>
+								No of Days
+						</Table.HeaderCell>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
+						{
+							cardData[activeItem][key].cards?.map((card, index) => (
+								<Table.Row>
+									<Table.Cell textAlign='center'>
+										{index + 1}
+									</Table.Cell>
+									<Table.Cell>
+										{card.cardName}
+									</Table.Cell>
+									<Table.Cell>
+										{
+											moment(card.todoDate).format('DD/MM/YYYY')
+											//moment(card.todoDate).format('DD/MM/YYYY') + '\n' + moment(card.actualToDoDate).format('DD/MM/YYYY')
+										}
+									</Table.Cell>
+									<Table.Cell>
+										{
+											//moment(card.inPeerReview).format('DD/MM/YYYY') + '\n' + moment(card.actualInPeerReview).format('DD/MM/YYYY')
+											moment(card.inPeerReview).format('DD/MM/YYYY')
+										}
+									</Table.Cell>
+									<Table.Cell>
+										{
+											moment(card.inQADate).format('DD/MM/YYYY')
+											//moment(card.inQADate).format('DD/MM/YYYY') + '\n' + moment(card.actualInQADate).format('DD/MM/YYYY')
+										}
+									</Table.Cell>
+									<Table.Cell>
+										{
+											moment(card.inStagingDate).format('DD/MM/YYYY')
+											// moment(card.inStagingDate).format('DD/MM/YYYY') + '\n' + moment(card.actualInStagingDate).format('DD/MM/YYYY')
+										}
+									</Table.Cell>
+									<Table.Cell textAlign='center'>
+										{cardData[activeItem][key].role === 'Team Member' ? card.noOfDaysWorkedAsTeamMember : card.noOfDaysWorkedAsQAPerson}
+									</Table.Cell>
+								</Table.Row>
+							))
+						}
+					</Table.Body>
+					<Table.Footer>
+						<Table.Row>
+							<Table.HeaderCell>
+								<b></b>
+							</Table.HeaderCell>
+							<Table.HeaderCell>
+								<b>Total No of Cards: {cardData[activeItem][key]?.total?.cardTotal}</b>
+							</Table.HeaderCell>
+							<Table.HeaderCell>
+							</Table.HeaderCell>
+							<Table.HeaderCell>
+							</Table.HeaderCell>
+							<Table.HeaderCell>
+							</Table.HeaderCell>
+							<Table.HeaderCell>
+							</Table.HeaderCell>
+							<Table.HeaderCell>
+								<b>Total No of Days: {cardData[activeItem][key].role === 'Team Member' ? cardData[activeItem][key]?.total?.totalDays?.asTeamMember : cardData[activeItem][key]?.total?.totalDays?.asQAPerson}</b>
+							</Table.HeaderCell>
 
-				</Table.Row>
-				<Table.Row>
-					<Table.HeaderCell>
-					</Table.HeaderCell>
-					<Table.HeaderCell>
-					</Table.HeaderCell>
-					<Table.HeaderCell>
-					</Table.HeaderCell>
-					<Table.HeaderCell>
-					</Table.HeaderCell>
-					<Table.HeaderCell>
-					</Table.HeaderCell>
-					<Table.HeaderCell>
-						<b></b>
-					</Table.HeaderCell>
-					<Table.HeaderCell>
-						<b>Average: {cardData[activeItem][key].role === 'Team Member' ? cardData[activeItem][key]?.total?.average?.asTeamMember : cardData[activeItem][key]?.total?.average?.asQAPerson}</b>
-					</Table.HeaderCell>
-				</Table.Row>
-			</Table.Footer>
+						</Table.Row>
+						<Table.Row>
+							<Table.HeaderCell>
+							</Table.HeaderCell>
+							<Table.HeaderCell>
+							</Table.HeaderCell>
+							<Table.HeaderCell>
+							</Table.HeaderCell>
+							<Table.HeaderCell>
+							</Table.HeaderCell>
+							<Table.HeaderCell>
+							</Table.HeaderCell>
+							<Table.HeaderCell>
+								<b></b>
+							</Table.HeaderCell>
+							<Table.HeaderCell>
+								<b>Average: {cardData[activeItem][key].role === 'Team Member' ? cardData[activeItem][key]?.total?.average?.asTeamMember : cardData[activeItem][key]?.total?.average?.asQAPerson}</b>
+							</Table.HeaderCell>
+						</Table.Row>
+					</Table.Footer>
 				</Table>
 			</Accordion.Content>
 		</Accordion>
-	))
+	)) : (renderNoCardDetailsWarning())
 
+	const renderNoCardDetailsWarning = () => (
+		<Message warning>
+			<Message.Header>No details found!</Message.Header>
+			<p>Please upload card details for all the weeks.</p>
+		</Message>
+	)
 
-	const renderCardSection = () => (
+	const renderCardSection = () => shouldEnableCardCalculation && (
 		<Segment>
-			{sprints && (<Header as='h5'>
+			{sprints && activeItem !== 'Total' && (<Header as='h5'>
 				Sprint: {`${sprints[activeItem]?.start || '--'} : ${sprints[activeItem]?.end || '--'}`}
 			</Header>)}
 			{renderJSONFileInput()}
@@ -1170,11 +1239,27 @@ const Home = () => {
 		</Segment>
 	)
 
-
+	const renderDeleteConfirm = () => (
+		<Confirm
+			open={deleteData.show}
+			content={<div style={{padding: 30, fontSize: 16}}>Are you sure you want to delete <b>{deleteData.key} </b>from the list? </div>}
+			onCancel={hideDeleteConfirm}
+			onConfirm={deleteWorkerData}
+		/>
+	)
+	const renderCardCalculationToggle = () => (
+		<div style={{display: 'flex',  alignItems: 'center'}}>
+			<span style={{paddingRight: 10}}>Enable card calculation</span>
+			<Checkbox onClick={(e, data) => {
+				dispatch(toggleShouldEnableCardCalculation())
+			}} toggle checked={shouldEnableCardCalculation} />
+		</div>
+	)
 	return (
 		<>
 			<AppHeader />
 			<div className="home-container">
+				{renderDeleteConfirm()}
 				<Grid>
 					<Grid.Column mobile={16} tablet={5} computer={5}>
 						{renderInvoiceForm()}
@@ -1182,17 +1267,16 @@ const Home = () => {
 					<Grid.Column mobile={16} tablet={11} computer={11}>
 						{renderHiddenFileInput()}
 						{renderHiddenJSONFileInput()}
+
 						{renderFileInput()}
 						{renderInvoiceTabsAndTable()}
 						<br />
 						<br />
-						{/* {renderJSONFileInput()} */}
+						{renderCardCalculationToggle()}
 						{renderCardSection()}
-						{/* {renderCardTables()} */}
 						<br />
 						<br />
 						{renderGenerateInvoiceButton()}
-						{/* {renderDownloadInvoiceButton()} */}
 					</Grid.Column>
 				</Grid>
 			</div>

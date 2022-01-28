@@ -13,6 +13,7 @@ import { selectProjects, storeProjects } from "../../store/projectsSlice";
 import { useDispatch } from "react-redux";
 import { useFirebase } from "../../firebase";
 import { selectAppData } from "../../store/invoiceSlice";
+import { selectShouldEnableCardCalculation } from "../../store/UISlice";
 
 
 const Styles = styled.div`
@@ -187,6 +188,8 @@ function BillingInfoTable({ columns, data }) {
 }
 
 function InvoiceTable({ columns, data, state }) {
+
+  const showCardColumns = useSelector(selectShouldEnableCardCalculation)
   const bucket = `$ ${Number(state.endBalance) * -1}`
   const endBalance = `$ ${Number(state.endBalance)}`
   const totalPayable = (Number(state.nextMonthEstimate) - Number(state.endBalance)).toFixed(2)
@@ -278,8 +281,14 @@ function InvoiceTable({ columns, data, state }) {
             paddingTop: 20,
             paddingBottom: 5,
           }}>$ {numberWithCommas(parseFloat(state.total.usd).toFixed(2))}</td>
-          <td></td>
-          <td></td>
+          {
+            showCardColumns && (
+              <>
+                <td></td>
+                <td></td>
+              </>
+            )
+          }
         </tr>
         {(state?.invoiceMode === 'month') && (
           <>
@@ -294,8 +303,14 @@ function InvoiceTable({ columns, data, state }) {
               <td> - </td>
               <td> - </td>
               <td>$ {numberWithCommas(Number(state.nextMonthEstimate).toFixed(2))}</td>
-              <td></td>
-              <td></td>
+              {
+                showCardColumns && (
+                  <>
+                    <td></td>
+                    <td></td>
+                  </>
+                )
+              }
             </tr>
             <tr style={{
               fontWeight: 'bolder',
@@ -309,8 +324,14 @@ function InvoiceTable({ columns, data, state }) {
               <td> - </td>
               <td> - </td>
               <td>{numberWithCommas(bucket)}</td>
-              <td></td>
-              <td></td>
+              {
+                showCardColumns && (
+                  <>
+                    <td></td>
+                    <td></td>
+                  </>
+                )
+              }
             </tr>
             <tr style={{
               fontWeight: 'bolder',
@@ -323,8 +344,14 @@ function InvoiceTable({ columns, data, state }) {
               <td> - </td>
               <td> - </td>
               <td>$ {numberWithCommas(totalPayable)}</td>
-              <td></td>
-              <td></td>
+              {
+                showCardColumns && (
+                  <>
+                    <td></td>
+                    <td></td>
+                  </>
+                )
+              }
             </tr>
           </>
         )}
@@ -387,6 +414,8 @@ function BalanceTable({ columns, data }) {
 
 function Invoice() {
   const { state } = useLocation()
+
+  const showCardColumns = useSelector(selectShouldEnableCardCalculation)
 
   const { getProjectsList, setProject, setInvoiceAppInfo } = useFirebase()
 
@@ -507,14 +536,16 @@ function Invoice() {
         Header: "Total in USD",
         accessor: "totalInUSD"
       },
-      {
-        Header: "Number of tickets Assigned",
-        accessor: "noOfTickets"
-      },
-      {
-        Header: "Avg age (in working days)",
-        accessor: "averageAge"
-      },
+      ...(showCardColumns ? [
+        {
+          Header: "Number of tickets Assigned",
+          accessor: "noOfTickets"
+        },
+        {
+          Header: "Avg age (in working days)",
+          accessor: "averageAge"
+        },
+      ] : [])
     ],
     []
   );
@@ -545,7 +576,7 @@ function Invoice() {
     []
   );
 
-  const invoiceData = Object.keys(state.invoiceData).map((key, index) => {
+  const invoiceData = Object.keys(state.invoiceData).sort().map((key, index) => {
     const data = state.invoiceData[key];
     const hasCardData = state.cardData && Object.keys(state.cardData).length > 0;
     const cardKey = hasCardData ? getBestMatch(key, Object.keys(state.cardData) || Object.keys(state.invoiceData)) : key

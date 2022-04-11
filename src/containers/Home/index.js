@@ -5,7 +5,7 @@ import moment from 'moment';
 import 'moment-weekday-calc';
 import './index.css';
 import { useNavigate } from 'react-router-dom'
-import { Button, Dropdown, Form, Input, Label, Grid, Table, Header, Icon, Segment, Menu, Accordion, Confirm, Checkbox, Message } from 'semantic-ui-react'
+import { Button, Dropdown, Form, Input, Label, Grid, Table, Header, Icon, Segment, Menu, Accordion, Confirm, Checkbox, Message, Dimmer, Loader } from 'semantic-ui-react'
 import { TableBody } from './TableBody';
 import { useDispatch, useSelector } from 'react-redux';
 import { selectProjects, storeProjects } from '../../store/projectsSlice';
@@ -20,8 +20,9 @@ import JiraApi from 'jira-client';
 import { TableHeader } from './TableHeader';
 import routes from '../../constants/routes';
 import { current } from '@reduxjs/toolkit';
-import { selectShouldEnableCardCalculation, toggleShouldEnableCardCalculation } from '../../store/UISlice';
-
+import { selectShouldEnableCardCalculation, toggleShouldEnableCardCalculation, selectIsReadingFile, setIsReadingFile } from '../../store/UISlice';
+import { JIRA_CONNECTOR_URL } from '../../constants/app';
+import stringSimilarity from 'string-similarity';
 
 const client = new Version2Client({
 	host: 'https://anshad.atlassian.net',
@@ -52,28 +53,87 @@ const Home = () => {
 	const selectedJSONFile = useSelector(selectJSONFile)
 	const formData = useSelector(selectFormData)
   const shouldEnableCardCalculation = useSelector(selectShouldEnableCardCalculation)
+  const isReadingFile = useSelector(selectIsReadingFile)
 	console.log({
 		weekInvoiceData
 	})
+
+	console.log({
+		name: 'FORM DATA',
+		...useSelector(selectFormData)
+	})
+	const { project, to, balance, nextMonthEstimate, activeItem, invoiceMode, invoiceNumber, data, dateRange, sprints } = useSelector(selectFormData)
 
 	const documentRef = createRef();
 	const jsonRef = createRef();
 
 	const [from, setFrom] = useState('Teronext Consulting\nA3 Alsa Woodbine Line Road\nThycaud Trivandrum\nKerala India\n\n\nPh: +91 7907 881 319\nPayment method - via Remote.com')
-	const [to, setTo] = useState('')
-	const [data, setData] = useState([]);
-	const [project, setProject] = useState(Object.keys(projects)[0] || '');
-	const [balance, setBalance] = useState(0)
-	const [nextMonthEstimate, setNextMonthEstimate] = useState(0)
-	const [minDate, setMinDate] = useState();
-	const [activeItem, setActiveItem] = useState('Week1')
-	const [maxDate, setMaxDate] = useState();
-	const [invoiceMode, setInvoiceMode] = useState('week')
-	const [invoiceNumber, setInvoiceNumber] = useState(0)
+	// const [readingRemoteFile, setReadingRemoteFile]  = useState('true')
+	// const [to, setTo] = useState('')
+	// const [project, setProject] = useState(Object.keys(projects)[0] || '');
+	// const [balance, setBalance] = useState(0)
+	// const [nextMonthEstimate, setNextMonthEstimate] = useState(0)
+	// const [minDate, setMinDate] = useState();
+	// const [activeItem, setActiveItem] = useState('Week1')
+	// const [maxDate, setMaxDate] = useState();
+	// const [invoiceMode, setInvoiceMode] = useState('week')
+	// const [invoiceNumber, setInvoiceNumber] = useState(0)
 	const [deleteData, setDeleteData] = useState({
 		show: false,
 		key: null,
 	})
+
+	const setProject = (value) => {
+		dispatch(setFormData({
+			project: value,
+		}))
+	}
+	const setTo = (value) => {
+		dispatch(setFormData({
+			to: value,
+		}))
+	}
+	const setBalance = (value) => {
+		dispatch(setFormData({
+			balance: value,
+		}))
+	}
+	const setNextMonthEstimate = (value) => {
+		dispatch(setFormData({
+			nextMonthEstimate: value,
+		}))
+	}
+	const setInvoiceMode = (value) => {
+		dispatch(setFormData({
+			invoiceMode: value,
+		}))
+	}
+	const setInvoiceNumber = (value) => {
+		dispatch(setFormData({
+			invoiceNumber: value,
+		}))
+	}
+	const setActiveItem = (value) => {
+		dispatch(setFormData({
+			activeItem: value,
+		}))
+	}
+	const setData = (value) => {
+		dispatch(setFormData({
+			data: value,
+		}))
+	}
+	const setDateRange = (value) => {
+		dispatch(setFormData({
+			dateRange: value,
+		}))
+	}
+	const setSprints = (value) => {
+		dispatch(setFormData({
+			sprints: value,
+		}))
+	}
+
 
 	// const {
 	// 	to,
@@ -82,38 +142,39 @@ const Home = () => {
 	// const setTo = (data) => dispatch(setFormData({to: data}))
 
 	const dispatch = useDispatch()
-	const [dateRange, setDateRange] = useState([new Date(), new Date()]);
-	const [sprintDateRange, setSprintDateRange] = useState([new Date(), new Date()]);
-	const [sprints, setSprints] = useState();
+	// const [dateRange, setDateRange] = useState([new Date(), new Date()]);
+	// const [sprintDateRange, setSprintDateRange] = useState([new Date(), new Date()]);
+	// const [sprints, setSprints] = useState();
+	// const [data, setData] = useState([]);
 
-	useEffect(() => {
-		// getTestData().then(r => console.log({ r: r.val() }))
-	}, [])
+	// useEffect(() => {
+	// 	setProject(Object.keys(projects)[0] || '')
+	// }, [projects])
 
 	const handleItemClick = (e, { name }) => setActiveItem(name)
 
-	useEffect(() => {
-		getProjectsList().then(r => {
-			const projects = r.docs.reduce((_projects, doc) => ({
-				..._projects,
-				[doc.id]: doc.data(),
-			}), {})
-			dispatch(storeProjects(projects))
-			setProject(Object.keys(projects)[0] || '')
-		})
-	}, [])
+	// useEffect(() => {
+	// 	getProjectsList().then(r => {
+	// 		const projects = r.docs.reduce((_projects, doc) => ({
+	// 			..._projects,
+	// 			[doc.id]: doc.data(),
+	// 		}), {})
+	// 		dispatch(storeProjects(projects))
+	// 		setProject(Object.keys(projects)[0] || '')
+	// 	})
+	// }, [])
 
-	useEffect(() => {
-		getInvoiceAppInfo().then(docSnap => {
-			if (docSnap.exists()) {
-				setInvoiceNumber(Number(docSnap
-					.data().last_invoice_number) + 1)
-				dispatch(setAppData(docSnap.data()))
-			} else {
-				// doc.data() will be undefined in this case
-			}
-		})
-	}, [])
+	// useEffect(() => {
+	// 	getInvoiceAppInfo().then(docSnap => {
+	// 		if (docSnap.exists()) {
+	// 			setInvoiceNumber(Number(docSnap
+	// 				.data().last_invoice_number) + 1)
+	// 			dispatch(setAppData(docSnap.data()))
+	// 		} else {
+	// 			// doc.data() will be undefined in this case
+	// 		}
+	// 	})
+	// }, [])
 
 	const hideDeleteConfirm = () => setDeleteData(state => ({
 		...state,
@@ -278,6 +339,9 @@ const Home = () => {
 			const flooredMinutes = parseInt(minutesFromSecond / 10) * 10;
 			const hoursBilled = hoursFromSeconds + ':' + moment.utc(flooredMinutes * 60000).format('mm');
 			const hours = (hoursFromSeconds + flooredMinutes / 60);
+			var matches = projects && projects[project] && projects[project]?.billing_rate ? stringSimilarity.findBestMatch(key, Object.keys(projects[project]?.billing_rate)) : [];
+			const bestMatch = matches?.bestMatch?.rating > 0.6 ? matches?.bestMatch?.target : ''
+			const hourlyRate = bestMatch ? projects[project].billing_rate[bestMatch] : 1;
 			return {
 				..._invoiceData,
 				[key]: {
@@ -286,7 +350,7 @@ const Home = () => {
 					hoursWorked,
 					hoursBilled,
 					hours,
-					hourlyRate: 1,
+					hourlyRate,
 					totalInUSD: hours,
 				}
 			}
@@ -340,6 +404,9 @@ const Home = () => {
 			const hoursBilled = splittedTime[0] + ':' + billedMinutes
 			const hours = Number(splittedTime[0]) + Number(billedMinutes) / 60;
 			const totalInUSD = hours * 1;
+			var matches = projects && projects[project] && projects[project]?.billing_rate ? stringSimilarity.findBestMatch(key, Object.keys(projects[project]?.billing_rate)) : [];
+			const bestMatch = matches?.bestMatch?.rating > 0.6 ? matches?.bestMatch?.target : ''
+			const hourlyRate = bestMatch ? projects[project].billing_rate[bestMatch] : 1;
 			const updatedInvoiceData = {
 				..._totalInvoice,
 				[key]: {
@@ -349,7 +416,7 @@ const Home = () => {
 					hoursBilled,
 					hours,
 					totalInUSD,
-					hourlyRate: 1,
+					hourlyRate,
 				}
 			}
 			return updatedInvoiceData
@@ -360,10 +427,11 @@ const Home = () => {
 			Total: {
 				data: totalInvoice,
 				total,
-				start: minDate?.toISOString(),
-				end: maxDate?.toISOString(),
+				start: dateRange[0]?.toISOString(),
+				end: dateRange[1]?.toISOString(),
 			}
 		}))
+		dispatch(setIsReadingFile(false))
 	}
 
 	useEffect(() => {
@@ -445,7 +513,9 @@ const Home = () => {
 		// 	moment(dateRange[0]).day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
 		// 	moment(dateRange[0]).day(3).format('YYYY/MM/DD'),
 		// ])
-	}, [dateRange])
+	}, [dateRange, project])
+
+
 
 
 	const onChangeDateRange = (range) => {
@@ -454,6 +524,7 @@ const Home = () => {
 
 	useEffect(() => {
 		if (selectedFile) {
+			dispatch(setIsReadingFile(true))
 			const url = URL.createObjectURL(selectedFile)
 			readRemoteFile(url, {
 				header: true,
@@ -461,18 +532,18 @@ const Home = () => {
 				complete: ({ data }) => {
 					setData(data)
 					const dates = data.map(item => moment(item.start_time))
-					setMinDate(moment.min(dates).startOf('day').toDate())
-					setMaxDate(moment.max(dates).endOf('day').toDate())
+					// setMinDate(moment.min(dates).startOf('day').toDate())
+					// setMaxDate(moment.max(dates).endOf('day').toDate())
 					setDateRange([moment.min(dates).startOf('day').toDate(), moment.max(dates).endOf('day').toDate()])
 				}
 			})
 		}
 	}, [selectedFile])
 
-	// const readJsonFileText = async () => {
-	// 	const text = await selectedJSONFile.text()
-	// 	return JSON.parse(text)
-	// }
+	const readJsonFileText = async () => {
+		const text = await selectedJSONFile.text()
+		return JSON.parse(text)
+	}
 
 	const getCardTotal = (cardData) => Object.values(
 		cardData
@@ -656,7 +727,7 @@ const Home = () => {
 				))
 			})
 		}
-	}, [selectedJSONFile, sprintDateRange])
+	}, [selectedJSONFile])
 
 	useEffect(() => {
 
@@ -884,16 +955,29 @@ const Home = () => {
 
 	const hasWeekInvoice = (Object.keys(weekInvoiceData).length > 0)
 	const showTabsAndTable = (selectedFile && weekInvoiceData && hasWeekInvoice)
-	const renderInvoiceTabsAndTable = () => showTabsAndTable && (
+	const renderInvoiceTabsAndTable = () => showTabsAndTable &&  (
 		<div>
-			{renderWeeksTabsMenu()}
-			{renderTableSegment()}
+			{
+				isReadingFile ? (
+					<div style={{ minHeight: 300 }}>
+						<Dimmer active inverted>
+							<Loader inverted>Calculating</Loader>
+						</Dimmer>
+					</div>
+				) : (
+					<>
+						{renderWeeksTabsMenu()}
+						{renderTableSegment()}
+					</>
+				)
+			}
 		</div>
 	)
 
 	const onChangeFile = (e) => {
 		if (e.target.files.length > 0) {
-			dispatch(setSelectedFile(e.target.files[0]));
+			const selectedFile = e.target.files[0]
+			dispatch(setSelectedFile(selectedFile));
 			jsonRef.current.value = "";
 		}
 	}
@@ -1222,7 +1306,7 @@ const Home = () => {
 		</Accordion>
 	)) : (renderNoCardDetailsWarning())
 
-	const renderNoCardDetailsWarning = () => (
+	const renderNoCardDetailsWarning = () => activeItem === 'Total' && (
 		<Message warning>
 			<Message.Header>No details found!</Message.Header>
 			<p>Please upload card details for all the weeks.</p>
@@ -1248,11 +1332,16 @@ const Home = () => {
 		/>
 	)
 	const renderCardCalculationToggle = () => (
-		<div style={{display: 'flex',  alignItems: 'center'}}>
-			<span style={{paddingRight: 10}}>Enable card calculation</span>
+		<div style={{display: 'flex',  alignItems: 'center', justifyContent: 'space-between'}}>
+			<span style={{ alignItems: 'center', display: 'flex'}}><span style={{ paddingRight: 10}}>Enable card calculation</span>
 			<Checkbox onClick={(e, data) => {
 				dispatch(toggleShouldEnableCardCalculation())
-			}} toggle checked={shouldEnableCardCalculation} />
+				}} toggle checked={shouldEnableCardCalculation} /></span>
+			{shouldEnableCardCalculation && (
+				<span>
+					<a href={JIRA_CONNECTOR_URL} target='_blank' >Open Jira Connector</a>
+				</span>
+			)}
 		</div>
 	)
 	return (

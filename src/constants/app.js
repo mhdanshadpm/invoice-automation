@@ -1,0 +1,1 @@
+export const JIRA_CONNECTOR_URL = 'https://invoice-automation.bubbleapps.io/version-test';

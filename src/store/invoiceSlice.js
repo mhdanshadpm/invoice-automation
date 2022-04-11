@@ -10,6 +10,7 @@ export const invoiceSlice = createSlice({
     cardData: {},
     formData: {
       to: '',
+      from: '',
       project: '',
       balance: '',
       nextMonthEstimate: 0,
@@ -19,7 +20,8 @@ export const invoiceSlice = createSlice({
       invoiceMode: 'week',
       invoiceNumber: 0,
       data: [],
-      dateRange: [new Date(), new Date()]
+      dateRange: [new Date(), new Date()],
+      sprints: undefined,
     },
   },
   reducers: {

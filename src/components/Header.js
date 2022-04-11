@@ -1,16 +1,14 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Menu, Button } from 'semantic-ui-react'
 import routes from '../constants/routes';
 
 export const Header = () => {
 
   const navigate = useNavigate()
-
-  const [activeItem, setActiveItem] = useState('home');
+  const location = useLocation()
 
   const handleItemClick = (e, { name }) => {
-    setActiveItem(name);
     navigate(name)
   }
 
@@ -26,13 +24,13 @@ export const Header = () => {
         <Menu.Item
           children='Home'
 					name={routes.HOME}
-					active={activeItem === routes.HOME}
+					active={location.pathname === routes.HOME}
 					onClick={handleItemClick}
 				/>
         <Menu.Item
           children='Projects'
           name={routes.PROJECTS}
-          active={activeItem === routes.PROJECTS}
+          active={location.pathname === routes.PROJECTS}
           onClick={handleItemClick}
         />
 

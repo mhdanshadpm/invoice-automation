@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useTable } from "react-table";
 import { useLocation } from "react-router-dom";
@@ -7,14 +7,19 @@ import stringSimilarity from 'string-similarity';
 import { get } from "firebase/database";
 import { getNextDayOfTheWeek, numberWithCommas } from "../../utils/functions";
 import jsPDF from "jspdf";
-import { Button } from "semantic-ui-react";
+import { Button, Confirm, Icon, Modal, TableCell, TableRow } from "semantic-ui-react";
 import { useSelector } from "react-redux";
 import { selectProjects, storeProjects } from "../../store/projectsSlice";
 import { useDispatch } from "react-redux";
 import { useFirebase } from "../../firebase";
 import { selectAppData } from "../../store/invoiceSlice";
 import { selectShouldEnableCardCalculation } from "../../store/UISlice";
-
+import Calendar from 'react-calendar';
+import { Packer } from "docx";
+import { saveAs } from 'file-saver'
+import { string } from "yup";
+import { create } from "./utils";
+import "file-viewer";
 
 const Styles = styled.div`
   padding: 1rem;
@@ -151,7 +156,7 @@ function AddressTable({ columns, data}) {
   );
 }
 
-function BillingInfoTable({ columns, data }) {
+function BillingInfoTable({ columns, data, showPrintButton, setOpen }) {
   // Use the state and functions returned from useTable to build your UI
   const {
     getTableProps,
@@ -177,7 +182,12 @@ function BillingInfoTable({ columns, data }) {
           return (
             <tr {...row.getRowProps()}>
               {row.cells.map((cell, index) => {
-                return <td style={{ width: "50%", textAlign: index === 0 ? "left" : "right" }} {...cell.getCellProps()}><b>{cell.render("Cell")}</b></td>;
+                return <td style={{ width: "50%", textAlign: index === 0 ? "left" : "right" }} {...cell.getCellProps()}>
+                  <b>
+                    {(index === 1 && showPrintButton) && <Button onClick={()=> setOpen(true)} style={{ background: 'transparent', padding: 0 }} icon='calendar alternate outline' />}
+                    {cell.render("Cell")}
+                  </b>
+                </td>;
               })}
             </tr>
           );
@@ -235,11 +245,14 @@ function InvoiceTable({ columns, data, state }) {
       <thead>
         {headerGroups.map((headerGroup) => (
           <tr {...headerGroup.getHeaderGroupProps()}>
-            <th>#</th>
+            <th style={{verticalAlign: 'top'}}>#</th>
             {headerGroup.headers.map((column) => {
               return (
                 <th
-                  style={getStyle(column.id)}
+                  style={{
+                    ...getStyle(column.id),
+                    verticalAlign: 'top'
+                  }}
                   {...column.getHeaderProps()}
                 >
                   {column.render("Header")}
@@ -267,7 +280,7 @@ function InvoiceTable({ columns, data, state }) {
             textAlign: 'left',
             paddingTop: 20,
             paddingBottom: 5,
-          }}>Total</td>
+          }}>{(state?.invoiceMode === 'week') ? 'Total' : 'Billed Total'}</td>
           {(state?.invoiceMode === 'week') && <td style={{
             paddingTop: 20,
             paddingBottom: 5,
@@ -423,14 +436,25 @@ function Invoice() {
   const appData = useSelector(selectAppData);
   const dispatch = useDispatch();
 
+  const invoiceRef = useRef();
   const [showPrintButton, setShowPrintButton] = useState(true)
+  const [billingDate, setBillingDate] = useState(new Date())
+  const [open, setOpen] = useState(false)
+  const [value, onChange] = useState(new Date());
+  const [document, setDocument] = useState();
+
+  useEffect(() => {
+    console.log(invoiceRef.current.innerHTML)
+  }, [])
 
   const printAsPDF = () => {
     setShowPrintButton(false)
     setTimeout(() => {
       window.print()
-      setShowPrintButton(true)
-    }, 0)
+      setTimeout(() => {
+        setShowPrintButton(true)
+      }, 500)
+    }, 100)
 
   }
 
@@ -470,6 +494,7 @@ function Invoice() {
     }
   }
 
+  const bucket = `$ ${Number(state.endBalance) * -1}`
   const totalPayable = (Number(state.nextMonthEstimate) - Number(state.endBalance)).toFixed(2)
 
   const getBestMatch = (key, array) => {
@@ -563,10 +588,10 @@ function Invoice() {
     () => [
       {
         period: `Billing Period:  ${moment(state.dates[0]).format('Do')} to ${moment(state.dates[1]).format('Do')} ${moment(state.dates[0]).format('MMMM YYYY')}`,
-        billingDate: `Invoice Date:${moment(state.dates[1]).add(1, 'days').weekday() === 0 ? moment(state.dates[1]).add(2, 'days').format('DD-MM-YYYY') :  moment(state.dates[1]).add(1, 'days').format('DD-MM-YYYY')}`,
+        billingDate: `Invoice Date:${moment(billingDate).format('DD-MM-YYYY')}`,
       }
     ],
-    []
+    [billingDate]
   );
   const balanceData = React.useMemo(
     () => [
@@ -577,6 +602,7 @@ function Invoice() {
   );
 
   const invoiceData = Object.keys(state.invoiceData).sort().map((key, index) => {
+
     const data = state.invoiceData[key];
     const hasCardData = state.cardData && Object.keys(state.cardData).length > 0;
     const cardKey = hasCardData ? getBestMatch(key, Object.keys(state.cardData) || Object.keys(state.invoiceData)) : key
@@ -591,18 +617,63 @@ function Invoice() {
     }
   })
 
+  const saveOutputAs = (type) => {
+    const doc = create(state, invoiceData, invoiceTableColumns, billingDate, bucket, totalPayable, showCardColumns);
+    Packer.toBlob(doc).then(blob => {
+      console.log(blob);
+      const filename = state.invoiceMode === 'week' ? `Invoice#${state.invoiceNumber}_${moment(state.dates[0]).format('MMMM D ,YYYY ')} through ${moment(state.dates[1]).format('MMMM D ,YYYY ')}` : `Invoice#${state.invoiceNumber} - ${moment(state.dates[0]).format('MMMM').toUpperCase()} ${moment(state.dates[0]).format('YYYY')}`
+      saveAs(blob, `${filename}.docx`);
+      setDocument(URL.createObjectURL(blob))
+      console.log("Document created successfully");
+    });
+  }
+
+  const [showSaveAsDocxConfirm, setShowSaveAsDocxConfirm] = useState(false)
+  const saveAsDocx = () => saveOutputAs('docx')
+  const saveAsPDF = () => saveOutputAs('pdf')
+  const onClickSaveAsDocx = () => setShowSaveAsDocxConfirm(true)
 
   return (
     <Styles>
       {
         showPrintButton && (
-          <div style={{padding: 10, marginBottom: 50, boxShadow: '0px 1px 3px grey'}}>
+          <div style={{ padding: 10, marginBottom: 50, boxShadow: '0px 1px 3px grey' }}>
             <Button onClick={printAsPDF}>Print</Button>
+            <Button onClick={onClickSaveAsDocx}>Save as DOCX</Button>
+            {/* <Button onClick={saveAsPDF}>Save as PDF</Button> */}
             <Button onClick={saveBalance}>Save Balance & Invoice Number</Button>
           </div>
         )
       }
-      <div style={{ width: 800, margin: "auto", paddingRight: 30 }}>
+      {showSaveAsDocxConfirm && <Confirm
+        open={showSaveAsDocxConfirm}
+        cancelButton='Cancel'
+        confirmButton={<Button negative children='OK' />}
+        content={'It is recommended to use LibreOffice to view Docx. Other applications may show poor alignment and layout.'}
+        onCancel={() => setShowSaveAsDocxConfirm(false)}
+        onConfirm={() => {
+          saveAsDocx()
+          setShowSaveAsDocxConfirm(false)
+        }}
+      />}
+      <Modal
+        style={{width: 'auto'}}
+        closeIcon='close'
+        onClose={() => setOpen(false)}
+        onOpen={() => setOpen(true)}
+        open={open}
+        // trigger={<Button>Show Modal</Button>}
+      >
+        <Modal.Header>Select Invoice Date</Modal.Header>
+        <Modal.Content image>
+          <Calendar onChange={(date) => {
+            setBillingDate(date)
+            onChange(date)
+            setOpen(false)
+          }} value={value} />
+        </Modal.Content>
+      </Modal>
+      <div ref={invoiceRef} style={{ width: 800, margin: "auto", paddingRight: 30 }}>
         {
           (state.invoiceMode === 'week') ? (
             <>
@@ -614,7 +685,7 @@ function Invoice() {
             )
         }
         {/* <Table columns={columns} data={data} /> */}
-        <br /><BillingInfoTable columns={billingInfoTableColumns} data={billingData} />
+        <br /><BillingInfoTable columns={billingInfoTableColumns} data={billingData} showPrintButton={showPrintButton} setOpen={setOpen} />
         <br /><AddressTable columns={addressTableColumns} data={addressData} />
         <br /><BalanceTable columns={balanceTableColumns} data={balanceData} />
         <br />
@@ -624,10 +695,9 @@ function Invoice() {
         <br /><InvoiceTable columns={invoiceTableColumns} data={invoiceData} state={state} />
         <br />
         <div><b>
-          Amount due: $ {numberWithCommas(totalPayable)}
+          Amount due: $ {(state.invoiceMode === 'week') ? '---' :  numberWithCommas(totalPayable) }
         </b></div>
-        <div><p>Account balance after payment: <span style={{ fontWeight: 'bolder' }}>${numberWithCommas(Number(state.nextMonthEstimate).toFixed(2))}</span></p></div>
-
+        <div><p>Account balance after payment:  <span style={{ fontWeight: 'bolder' }}>{(state.invoiceMode === 'week') ? '---' : `$${numberWithCommas(Number(state.nextMonthEstimate).toFixed(2))}`}</span></p></div>
       </div>
     </Styles>
   );

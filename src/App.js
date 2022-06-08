@@ -17,6 +17,7 @@ import { useDispatch } from 'react-redux';
 import { useFirebase } from './firebase';
 import { setAppData, setFormData } from './store/invoiceSlice';
 import { storeProjects } from './store/projectsSlice';
+import { Settings } from './containers/Settings';
 
 function App() {
 	const { getProjectsList, getInvoiceAppInfo } = useFirebase()
@@ -53,6 +54,7 @@ function App() {
 			<Routes>
 				<Route path={routes.DOWNLOAD_INVOICE} element={<InvoicePDF />} />
 				<Route path={routes.PROJECTS} element={<Projects />} />
+				{/* <Route path={routes.SETTINGS} element={<Settings />} /> */}
 				<Route path={routes.WEEK_INVOICE} element={<WeekInvoice />} />
 				<Route path={routes.INVOICE} element={<Invoice />} />
 				<Route path={routes.LOGIN} element={<LoginForm />} />

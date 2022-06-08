@@ -474,6 +474,7 @@ function Invoice() {
     if (state.invoiceMode === 'month') {
       setProject(state.project.key, {
         ...project,
+        last_invoice_number: state.invoiceNumber,
         month_balance: state.endBalance
       }).then(r => updateProjectsList().then(() => {
         setInvoiceAppInfo({
@@ -484,7 +485,8 @@ function Invoice() {
     } else {
       setProject(state.project.key, {
         ...project,
-        week_balance: state.endBalance
+        week_balance: state.endBalance,
+        last_invoice_number: state.invoiceNumber,
       }).then(r => updateProjectsList().then(() => {
         setInvoiceAppInfo({
           ...appData,
@@ -587,8 +589,8 @@ function Invoice() {
   const billingData = React.useMemo(
     () => [
       {
-        period: `Billing Period:  ${moment(state.dates[0]).format('Do')} to ${moment(state.dates[1]).format('Do')} ${moment(state.dates[0]).format('MMMM YYYY')}`,
-        billingDate: `Invoice Date:${moment(billingDate).format('DD-MM-YYYY')}`,
+        period: `Billing Period:  ${moment(state.dates[0]).format('LL')} through ${moment(state.dates[1]).format('LL')}`,
+        billingDate: `Invoice Date: ${moment(billingDate).format('LL')}`,
       }
     ],
     [billingDate]
@@ -677,11 +679,11 @@ function Invoice() {
         {
           (state.invoiceMode === 'week') ? (
             <>
-              <h2>Invoice #{state.invoiceNumber}</h2>
-              <h2>Period: {moment(state.dates[0]).format('MMMM D ,YYYY ')} through {moment(state.dates[1]).format('MMMM D ,YYYY ')}</h2>
+              <h2>Invoice #{state.invoiceNumber} ({state.project.name})</h2>
+              <h2>Period: {moment(state.dates[0]).format('LL')} through {moment(state.dates[1]).format('LL')}</h2>
             </>
           ) : (
-              <h2>Invoice #{state.invoiceNumber} - {moment(state.dates[0]).format('MMMM').toUpperCase()} {moment(state.dates[0]).format('YYYY')}</h2>
+              <h2>Invoice #{state.invoiceNumber} ({state.project.name}) - {moment(state.dates[0]).format('MMMM').toUpperCase()} {moment(state.dates[0]).format('YYYY')}</h2>
             )
         }
         {/* <Table columns={columns} data={data} /> */}

@@ -339,9 +339,13 @@ const Home = () => {
 			const flooredMinutes = parseInt(minutesFromSecond / 10) * 10;
 			const hoursBilled = hoursFromSeconds + ':' + moment.utc(flooredMinutes * 60000).format('mm');
 			const hours = (hoursFromSeconds + flooredMinutes / 60);
-			var matches = projects && projects[project] && projects[project]?.billing_rate ? stringSimilarity.findBestMatch(key, Object.keys(projects[project]?.billing_rate)) : [];
+			var matches = [];
+			if (projects && projects[project] && projects[project]?.billing_rate && Object.keys(projects[project]?.billing_rate)?.length > 0 && key) {
+				matches = stringSimilarity.findBestMatch(key, Object.keys(projects[project]?.billing_rate))
+			}
 			const bestMatch = matches?.bestMatch?.rating > 0.6 ? matches?.bestMatch?.target : ''
 			const hourlyRate = bestMatch ? projects[project].billing_rate[bestMatch] : 1;
+			const totalInUSD = hours * hourlyRate;
 			return {
 				..._invoiceData,
 				[key]: {
@@ -351,7 +355,7 @@ const Home = () => {
 					hoursBilled,
 					hours,
 					hourlyRate,
-					totalInUSD: hours,
+					totalInUSD,
 				}
 			}
 		}, {})
@@ -380,14 +384,14 @@ const Home = () => {
 					..._invoiceByWorkers,
 					[item.worker]: [
 						..._invoiceByWorkers[item.worker],
-						item.hoursBilled
+						item.hoursWorked
 					]
 
 				}
 			} else {
 				return {
 					..._invoiceByWorkers,
-					[item.worker]: [item.hoursBilled]
+					[item.worker]: [item.hoursWorked]
 				}
 			}
 		}, {})
@@ -403,10 +407,13 @@ const Home = () => {
 			const billedMinutes = moment.utc((parseInt(splittedTime[1] / 10) * 10) * 60000).format('mm');
 			const hoursBilled = splittedTime[0] + ':' + billedMinutes
 			const hours = Number(splittedTime[0]) + Number(billedMinutes) / 60;
-			const totalInUSD = hours * 1;
-			var matches = projects && projects[project] && projects[project]?.billing_rate ? stringSimilarity.findBestMatch(key, Object.keys(projects[project]?.billing_rate)) : [];
+			var matches = [];
+			if (projects && projects[project] && projects[project]?.billing_rate && Object.keys(projects[project]?.billing_rate)?.length > 0 && key) {
+				matches = stringSimilarity.findBestMatch(key, Object.keys(projects[project]?.billing_rate))
+			}
 			const bestMatch = matches?.bestMatch?.rating > 0.6 ? matches?.bestMatch?.target : ''
 			const hourlyRate = bestMatch ? projects[project].billing_rate[bestMatch] : 1;
+			const totalInUSD = hours * hourlyRate;
 			const updatedInvoiceData = {
 				..._totalInvoice,
 				[key]: {
@@ -737,12 +744,16 @@ const Home = () => {
 		if (project && projects[project]) {
 			if (invoiceMode === 'week') {
 				setTo(projects[project].weekly_invoice_address)
+				setFrom(projects[project]?.from_address || '')
 				setBalance(projects[project].week_balance)
-				setActiveItem('Week1')
+				setActiveItem('Total')
+				// setInvoiceNumber(Number(projects[project].last_invoice_number) + 2)
 			} else if (invoiceMode === 'month') {
-				setTo(projects[project].monthly_invoice_address)
+				setTo(projects[project]?.monthly_invoice_address || '')
+				setFrom(projects[project].from_address)
 				setBalance(projects[project].month_balance)
 				setActiveItem('Total')
+				// setInvoiceNumber(Number(projects[project].last_invoice_number) + 2)
 			}
 		}
 	}, [invoiceMode, project])
@@ -835,8 +846,9 @@ const Home = () => {
 					Period: {period}
 				</Header>
 				<Table celled striped>
-					<TableHeader activeItem={activeItem} />
+					<TableHeader activeItem={activeItem} invoiceMode={invoiceMode} />
 					<TableBody
+						invoiceMode={invoiceMode}
 						activeItem={activeItem}
 						onChangeHoursWorked={onChangeHoursWorked}
 						data={data}
@@ -1002,7 +1014,7 @@ const Home = () => {
 	const renderSelectWeekDropdown = () => {
 		const onChangeActiveItem = (e, data) => setActiveItem(data.value)
 		const weekKeys = Object.keys(weekInvoiceData)
-		const weekOptions = weekKeys.filter(key => key !== 'Total').map(key => {
+		const weekOptions = weekKeys.map(key => {
 			const startDate = moment(weekInvoiceData[key].start).format('DD/MM/YY')
 			const endDate = moment(weekInvoiceData[key].end).format('DD/MM/YY')
 			const text = `${key}: ${startDate} - ${endDate}`
@@ -1334,7 +1346,7 @@ const Home = () => {
 	const renderCardCalculationToggle = () => (
 		<div style={{display: 'flex',  alignItems: 'center', justifyContent: 'space-between'}}>
 			<span style={{ alignItems: 'center', display: 'flex'}}><span style={{ paddingRight: 10}}>Enable card calculation</span>
-			<Checkbox onClick={(e, data) => {
+			<Checkbox id='toggle-card-calculation-checkbox' onClick={(e, data) => {
 				dispatch(toggleShouldEnableCardCalculation())
 				}} toggle checked={shouldEnableCardCalculation} /></span>
 			{shouldEnableCardCalculation && (

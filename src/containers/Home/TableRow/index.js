@@ -5,7 +5,7 @@ import { selectInvoiceData, setWeekInvoiceData } from "../../../store/invoiceSli
 import { selectShouldEnableCardCalculation } from "../../../store/UISlice"
 import { getNumbersInRangeAsArray } from '../../../utils/functions'
 
-const TableRow = ({ data, no, name, setHourlyRate, onChangeHoursWorked, activeItem, cardData, deleteWorkerData, invoiceDataKeys }) => {
+const TableRow = ({ data, no, name, setHourlyRate, onChangeHoursWorked, activeItem, cardData, deleteWorkerData, invoiceDataKeys, invoiceMode }) => {
 
   const showCardColumns = useSelector(selectShouldEnableCardCalculation)
 
@@ -84,7 +84,7 @@ const TableRow = ({ data, no, name, setHourlyRate, onChangeHoursWorked, activeIt
 			}
 
 		</Table.Cell>
-		{activeItem !== 'Total' && (<Table.Cell>
+		{(activeItem !== 'Total' || invoiceMode ==='week') && (<Table.Cell>
 			<Input type='text' error={!isHoursWorkedValid} {...(data.hoursWorked !== hoursWorked) && { labelPosition: 'left' }} placeholder='Amount'>
 				<input ref={inputRef} style={{ width: 100 }} value={hoursWorked} onChange={(e) => {
 						// if (data.hoursWorked === e.target.value) {

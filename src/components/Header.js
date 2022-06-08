@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Menu, Button } from 'semantic-ui-react'
 import routes from '../constants/routes';
@@ -33,7 +32,12 @@ export const Header = () => {
           active={location.pathname === routes.PROJECTS}
           onClick={handleItemClick}
         />
-
+        {/* <Menu.Item
+          children='Settings'
+          name={routes.SETTINGS}
+          active={location.pathname === routes.SETTINGS}
+          onClick={handleItemClick}
+        /> */}
 				<Menu.Menu position='right'>
 					{/* <Dropdown item text='Language'>
 						<Dropdown.Menu>

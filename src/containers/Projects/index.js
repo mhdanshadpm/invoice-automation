@@ -40,7 +40,8 @@ export const Projects = () => {
     month_balance: '',
     monthly_invoice_address: '',
     week_balance: '',
-    weekly_invoice_address: ''
+    weekly_invoice_address: '',
+    from_address: '',
   }
   const DisplayingErrorMessagesSchema = Yup.object().shape({
     name: Yup.string().required('Required'),
@@ -48,7 +49,8 @@ export const Projects = () => {
     month_balance: Yup.string().required('Required').test('Digits Only', 'Invalid Number', value => /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/.test(value)),
     week_balance: Yup.string().required('Required').test('Digits Only', 'Invalid Number', value => /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/.test(value)),
     weekly_invoice_address: Yup.string().required('Required'),
-    monthly_invoice_address: Yup.string().required('Required')
+    monthly_invoice_address: Yup.string().required('Required'),
+    from_address: Yup.string().required('Required'),
   });
   const dispatch = useDispatch()
 
@@ -82,7 +84,8 @@ export const Projects = () => {
         month_balance: project.month_balance || '',
         monthly_invoice_address: project.monthly_invoice_address || '',
         week_balance: project.week_balance || '',
-        weekly_invoice_address: project.weekly_invoice_address || ''
+        weekly_invoice_address: project.weekly_invoice_address || '',
+        from_address: project.from_address || ''
       })
     } else {
       formik.setValues(initialValues)
@@ -108,7 +111,10 @@ export const Projects = () => {
         })).catch(() => alert('Something went wrong'))
 
       } else {
-        setProject(selectedProject, values).then(r => updateProjectsList().then(() => {
+        setProject(selectedProject, {
+          ...projects[selectedProject],
+          ...values
+        }).then(r => updateProjectsList().then(() => {
           alert('Project updated successfully')
           formik.setSubmitting(false)
         })).catch(() => alert('Something went wrong'))
@@ -276,6 +282,7 @@ export const Projects = () => {
                     </Form.Field>
                     <Form.TextArea id='weekly_invoice_address' onBlur={formik.handleBlur} error={formik.touched.weekly_invoice_address && formik.errors.weekly_invoice_address} onChange={(e, { value }) => formik.setFieldValue('weekly_invoice_address', value)} label='Address ( Weekly Invoice )' placeholder='enter the address' value={formik.values.weekly_invoice_address} />
                     <Form.TextArea id='monthly_invoice_address' onBlur={formik.handleBlur} error={formik.touched.monthly_invoice_address && formik.errors.monthly_invoice_address} onChange={(e, { value }) => formik.setFieldValue('monthly_invoice_address', value)} value={formik.values.monthly_invoice_address} label='Address ( Monthly Invoice )' placeholder='enter the address' />
+                    <Form.TextArea id='from_address' onBlur={formik.handleBlur} error={formik.touched.from_address && formik.errors.from_address} onChange={(e, { value }) => formik.setFieldValue('from_address', value)} value={formik.values.from_address} label='From Address' placeholder='enter the address' />
                     <Button loading={formik.isSubmitting} onClick={onSubmit} color='blue' type='submit'>{(selectedProject === 'add_new_project') ? 'Add' : 'Update'}</Button>
                     {(selectedProject !== 'add_new_project') && (
                       <Button loading={isDeleting} onClick={() => setShowConfirm(true)} negative type='submit'>Delete</Button>
@@ -296,7 +303,7 @@ export const Projects = () => {
                     </Table.Header>
 
                     <Table.Body>
-                      {(!!!projects[selectedProject]?.billing_rate || projects[selectedProject]?.billing_rate?.length <= 0) ? (<Table.Row textAlign='center' warning><Table.Cell colSpan='3'><Icon name='attention' />Nothing Found!</Table.Cell></Table.Row>) :
+                            {(!!!projects[selectedProject]?.billing_rate || Object.keys(projects[selectedProject]?.billing_rate)?.length === 0) ? (<Table.Row textAlign='center' warning><Table.Cell colSpan='3'><Icon name='attention' />Nothing Found!</Table.Cell></Table.Row>) :
                         Object.keys(projects[selectedProject].billing_rate).map((key) => (
                           <Table.Row>
                             <Table.Cell>{editBillingRate.key === key ? (

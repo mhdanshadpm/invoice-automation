@@ -7,7 +7,7 @@ import moment from 'moment'
 import { useSelector } from "react-redux";
 import { selectShouldEnableCardCalculation } from "../../../store/UISlice";
 
-const TableBody = ({ invoiceData, setHourlyRate, total, onChangeHoursWorked, activeItem, cardData, addWorkerData, deleteWorkerData }) => {
+const TableBody = ({ invoiceData, invoiceMode, setHourlyRate, total, onChangeHoursWorked, activeItem, cardData, addWorkerData, deleteWorkerData }) => {
 
 
 	const showCardColumns = useSelector(selectShouldEnableCardCalculation)
@@ -58,6 +58,7 @@ const TableBody = ({ invoiceData, setHourlyRate, total, onChangeHoursWorked, act
 						const cardKey = hasCardData ? getBestMatch(key) : key
 						return (
 							<TableRow
+								invoiceMode={invoiceMode}
 								activeItem={activeItem}
 								onChangeHoursWorked={onChangeHoursWorked}
 								setHourlyRate={setHourlyRate}
@@ -152,7 +153,7 @@ const TableBody = ({ invoiceData, setHourlyRate, total, onChangeHoursWorked, act
 					<Table.Row>
 						<Table.HeaderCell><br></br></Table.HeaderCell>
 					<Table.HeaderCell><b>Total</b></Table.HeaderCell>
-					{ activeItem !== 'Total' && (<Table.HeaderCell><b>{total.hoursWorked}</b></Table.HeaderCell>)}
+					{ (activeItem !== 'Total' || invoiceMode === 'week') && (<Table.HeaderCell><b>{total.hoursWorked}</b></Table.HeaderCell>)}
 					<Table.HeaderCell><b>{total.hoursBilled}</b></Table.HeaderCell>
 						<Table.HeaderCell><b></b></Table.HeaderCell>
 					<Table.HeaderCell><b>${total.usd?.toFixed(2)?.toString()}</b></Table.HeaderCell>

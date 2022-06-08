@@ -1,11 +1,9 @@
 import { useLocation } from 'react-router-dom';
 import moment from 'moment';
 import './index.css'
-import { createRef, useEffect} from 'react';
+import { createRef } from 'react';
 // import HTMLToDOCX from 'html-to-docx';
 import { numberWithCommas } from '../../utils/functions';
-import jsPDF from 'jspdf';
-import { Table } from 'semantic-ui-react';
 import stringSimilarity from 'string-similarity';
 
 const WeekInvoice = () => {
@@ -16,7 +14,6 @@ const WeekInvoice = () => {
 
   const endBalance = `$ ${Number(state.endBalance)}`
 
-  const doc = new jsPDF()
   const totalPayable = (Number(state.nextMonthEstimate) - Number(state.endBalance)).toFixed(2)
 
 

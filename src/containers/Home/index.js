@@ -442,85 +442,96 @@ const Home = () => {
 	}
 
 	useEffect(() => {
-		const weeks = getWeeksInRange(new Date(dateRange[0]), new Date(dateRange[1]), 1)
-		const weeks2 = getWeeksInRangeV2(new Date(dateRange[0]), new Date(dateRange[1]), 1)
-		const weeksInvoice = weeks2.reduce((_weeksInvoice, week, index) => {
-			return {
-				..._weeksInvoice,
-				['Week' + (index + 1)]: getInvoiceData(week.start, week.end)
-			}
-		}, {})
+		if (invoiceMode === 'month') {
+			const weeks = getWeeksInRange(new Date(dateRange[0]), new Date(dateRange[1]), 1)
+			const weeks2 = getWeeksInRangeV2(new Date(dateRange[0]), new Date(dateRange[1]), 1)
+			const weeksInvoice = weeks2.reduce((_weeksInvoice, week, index) => {
+				return {
+					..._weeksInvoice,
+					['Week' + (index + 1)]: getInvoiceData(week.start, week.end)
+				}
+			}, {})
 
 
-		const weeks2Sprint = weeks2.reduce((_sprints, week, index) => {
+			const weeks2Sprint = weeks2.reduce((_sprints, week, index) => {
 
-			const start = moment(week.start).day(3).subtract(1, 'weeks').format('YYYY/MM/DD');
-			const end = moment(week.start).day(3).format('YYYY/MM/DD');
-			if (moment(week.start).weekday() === 0) {
+				const start = moment(week.start).day(3).subtract(1, 'weeks').format('YYYY/MM/DD');
+				const end = moment(week.start).day(3).format('YYYY/MM/DD');
+				if (moment(week.start).weekday() === 0) {
+					return {
+						..._sprints,
+						['Week' + (index + 1)]: {
+							start: moment(week.start).subtract(1, 'weeks').day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
+							end: moment(week.start).subtract(1, 'weeks').day(3).format('YYYY/MM/DD')
+						}
+					}
+				}
+				if (moment(week.start).weekday() > 3) {
+					return {
+						..._sprints,
+						['Week' + (index + 1)]: {
+							start: moment(week.start).day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
+							end: moment(week.start).day(3).format('YYYY/MM/DD')
+						}
+					}
+				}
+				if (moment(week.end).weekday() < 3 && moment(week.end).weekday() !== 0) {
+					return {
+						..._sprints,
+						['Week' + (index + 1)]: {
+							start: moment(week.start).subtract(1, 'weeks').day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
+							end: moment(week.start).subtract(1, 'weeks').day(3).format('YYYY/MM/DD')
+						}
+					}
+				}
+				if (moment(week.start).weekday() < 3 && (moment(week.end).weekday() >= 3 || moment(week.end).weekday() === 0)) {
+					return {
+						..._sprints,
+						['Week' + (index + 1)]: {
+							start: moment(week.start).day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
+							end: moment(week.start).day(3).format('YYYY/MM/DD')
+						}
+					}
+				}
+				// if (moment(end).isSameOrBefore(moment(dateRange[1]).format('YYYY/MM/DD')) ) {
+				// 	return {
+				// 		..._sprints,
+				// 		['Week' + (index + 1)]: {
+				// 			start,
+				// 			end,
+				// 		}
+				// 	}
+				// }
 				return {
 					..._sprints,
 					['Week' + (index + 1)]: {
-						start: moment(week.start).subtract(1, 'weeks').day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
-						end: moment(week.start).subtract(1, 'weeks').day(3).format('YYYY/MM/DD')
+						start: null,
+						end: null,
 					}
 				}
-			}
-			if (moment(week.start).weekday() > 3) {
-				return {
-					..._sprints,
-					['Week' + (index + 1)]: {
-						start: moment(week.start).day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
-						end: moment(week.start).day(3).format('YYYY/MM/DD')
-					}
-				}
-			}
-			if (moment(week.end).weekday() < 3 && moment(week.end).weekday() !== 0) {
-				return {
-					..._sprints,
-					['Week' + (index + 1)]: {
-						start: moment(week.start).subtract(1, 'weeks').day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
-						end: moment(week.start).subtract(1, 'weeks').day(3).format('YYYY/MM/DD')
-					}
-				}
-			}
-			if (moment(week.start).weekday() < 3 && (moment(week.end).weekday() >= 3 || moment(week.end).weekday() === 0)) {
-				return {
-					..._sprints,
-					['Week' + (index + 1)]: {
-						start: moment(week.start).day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
-						end: moment(week.start).day(3).format('YYYY/MM/DD')
-					}
-				}
-			}
-			// if (moment(end).isSameOrBefore(moment(dateRange[1]).format('YYYY/MM/DD')) ) {
-			// 	return {
-			// 		..._sprints,
-			// 		['Week' + (index + 1)]: {
-			// 			start,
-			// 			end,
-			// 		}
-			// 	}
-			// }
-			return {
-				..._sprints,
-				['Week' + (index + 1)]: {
-					start: null,
-					end: null,
-				}
-			}
-		}, {})
+			}, {})
 
 
-		setSprints(weeks2Sprint)
+			setSprints(weeks2Sprint)
 
-		dispatch(setWeekInvoiceData(weeksInvoice))
+			dispatch(setWeekInvoiceData(weeksInvoice))
 
-		findAndSaveTotalInvoiceData(weeksInvoice)
+			findAndSaveTotalInvoiceData(weeksInvoice)
 		// setSprintDateRange([
 		// 	moment(dateRange[0]).day(3).subtract(1, 'weeks').format('YYYY/MM/DD'),
 		// 	moment(dateRange[0]).day(3).format('YYYY/MM/DD'),
 		// ])
-	}, [dateRange, project])
+		} else {
+			const weeksInvoice = {
+				Week1: getInvoiceData(new Date(dateRange[0]), new Date(dateRange[1]))
+			}
+			console.log({weeksInvoice})
+			dispatch(setWeekInvoiceData(weeksInvoice))
+			findAndSaveTotalInvoiceData(weeksInvoice)
+			// dispatch(setIsReadingFile(false))
+
+		}
+	}, [dateRange, project, invoiceMode])
 
 
 
@@ -746,7 +757,7 @@ const Home = () => {
 				setTo(projects[project].weekly_invoice_address)
 				setFrom(projects[project]?.from_address || '')
 				setBalance(projects[project].week_balance)
-				setActiveItem('Total')
+				setActiveItem('Week1')
 				// setInvoiceNumber(Number(projects[project].last_invoice_number) + 2)
 			} else if (invoiceMode === 'month') {
 				setTo(projects[project]?.monthly_invoice_address || '')
@@ -858,6 +869,7 @@ const Home = () => {
 						invoiceData={invoiceData}
 						setHourlyRate={setHourlyRate}
 						cardData={cardData[activeItem]}
+						billingRates={projects && projects[project] && projects[project]?.billing_rate && Object.keys(projects[project]?.billing_rate)?.length > 0 ? projects[project]?.billing_rate : {} }
 					/>
 				</Table>
 			</Segment>
@@ -1117,7 +1129,7 @@ const Home = () => {
 						onChange={onChangeInvoiceMode}
 						options={invoiceModeOptions} />
 				</Form.Field>
-				{renderSelectWeekDropdown()}
+				{/* {renderSelectWeekDropdown()} */}
 				<Form.Field>
 					<label>{startBalanceLabel}</label>
 					<Input labelPosition='left' type='text' placeholder='Amount'>

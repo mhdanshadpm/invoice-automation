@@ -696,10 +696,20 @@ function Invoice() {
         </div>
         <br /><InvoiceTable columns={invoiceTableColumns} data={invoiceData} state={state} />
         <br />
-        <div><b>
+
+        <div>
+          <table style={{ width: '100%', border: 0 }}>
+            <tr>
+              <td style={{ textAlign: 'left', border: 'none', padding: 0 }}><b>Amount due: $ {(state.invoiceMode === 'week') ? '---' : numberWithCommas(totalPayable)}</b></td>
+              <td style={{ textAlign: 'right', border: 'none', padding: 0 }}><p>Account balance after payment:  <span style={{ fontWeight: 'bolder' }}>{(state.invoiceMode === 'week') ? '---' : `$${numberWithCommas(Number(state.nextMonthEstimate).toFixed(2))}`}</span></p></td>
+            </tr>
+          </table>
+        </div>
+        {/* <div><b>
           Amount due: $ {(state.invoiceMode === 'week') ? '---' :  numberWithCommas(totalPayable) }
         </b></div>
-        <div><p>Account balance after payment:  <span style={{ fontWeight: 'bolder' }}>{(state.invoiceMode === 'week') ? '---' : `$${numberWithCommas(Number(state.nextMonthEstimate).toFixed(2))}`}</span></p></div>
+        <div><p>Account balance after payment:  <span style={{ fontWeight: 'bolder' }}>{(state.invoiceMode === 'week') ? '---' : `$${numberWithCommas(Number(state.nextMonthEstimate).toFixed(2))}`}</span></p>
+        </div> */}
       </div>
     </Styles>
   );

@@ -16,7 +16,7 @@ export const invoiceSlice = createSlice({
       nextMonthEstimate: 0,
       minDate: undefined,
       maxDate: undefined,
-      activeItem: 'Week 1',
+      activeItem: 'Total',
       invoiceMode: 'week',
       invoiceNumber: 0,
       data: [],

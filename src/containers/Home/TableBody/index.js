@@ -7,7 +7,7 @@ import moment from 'moment'
 import { useSelector } from "react-redux";
 import { selectShouldEnableCardCalculation } from "../../../store/UISlice";
 
-const TableBody = ({ invoiceData, invoiceMode, setHourlyRate, total, onChangeHoursWorked, activeItem, cardData, addWorkerData, deleteWorkerData }) => {
+const TableBody = ({ invoiceData, invoiceMode, setHourlyRate, total, onChangeHoursWorked, activeItem, cardData, addWorkerData, deleteWorkerData, billingRates }) => {
 
 
 	const showCardColumns = useSelector(selectShouldEnableCardCalculation)
@@ -16,6 +16,8 @@ const TableBody = ({ invoiceData, invoiceMode, setHourlyRate, total, onChangeHou
 		var matches = stringSimilarity.findBestMatch(key, Object.keys(cardData) || Object.key(invoiceData));
 		return matches?.bestMatch?.rating > 0.6 ? matches?.bestMatch?.target : key
 	}
+
+
 
 	const initialWorkerData = {
 		hourlyRate: 1,
@@ -81,7 +83,13 @@ const TableBody = ({ invoiceData, invoiceMode, setHourlyRate, total, onChangeHou
 								<Input style={{ width: '100%' }} error={isWorkerExist} type='text' placeholder='Worker'>
 									<input value={workerData.worker} onChange={(e) => {
 										setIsWorkerExist(Object.keys(invoiceData).includes(e.target.value) ? true : false)
-										updateWorkerData({ worker: e.target.value })
+										var matches = [];
+										if (Object.keys(billingRates)?.length > 0 && e.target.value) {
+											matches = stringSimilarity.findBestMatch(e.target.value, Object.keys(billingRates))
+										}
+										const bestMatch = matches?.bestMatch?.rating > 0.6 ? matches?.bestMatch?.target : ''
+										const hourlyRate = bestMatch ? billingRates[bestMatch] : 1;
+										updateWorkerData({ worker: e.target.value, hourlyRate })
 									}} />
 								</Input>
 							</Form.Field>
